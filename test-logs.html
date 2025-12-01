@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Log Viewer</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+</head>
+<body>
+    <h2>Deployment Logs</h2>
+    <div id="logs" style="background: black; color: lime; padding: 10px; font-family: monospace; height: 400px; overflow-y: scroll;"></div>
+
+    <script type="text/javascript">
+        var socket = new SockJS('http://localhost:8081/ws');
+        var stompClient = Stomp.over(socket);
+
+        stompClient.connect({}, function (frame) {
+            console.log('Connected: ' + frame);
+            stompClient.subscribe('/topic/logs', function (logMessage) {
+                showLog(logMessage.body);
+            });
+        });
+
+        function showLog(message) {
+            var logDiv = document.getElementById("logs");
+            var p = document.createElement('p');
+            p.style.margin = "0";
+            p.appendChild(document.createTextNode(message));
+            logDiv.appendChild(p);
+            logDiv.scrollTop = logDiv.scrollHeight; // Auto scroll
+        }
+    </script>
+</body>
+</html>
