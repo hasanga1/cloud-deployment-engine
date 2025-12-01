@@ -17,6 +17,7 @@ public class TestController {
 
     @PostMapping("/deploy")
     public String triggerDeploy(@RequestBody Map<String, Object> payload) throws Exception {
+        String deploymentId = (String) payload.get("deploymentId"); 
         String repo = (String) payload.get("repoUrl");
         String branch = (String) payload.getOrDefault("branch", "main");
         
@@ -28,6 +29,6 @@ public class TestController {
             port = Integer.parseInt(payload.get("port").toString());
         }
         
-        return dockerService.deployProject(repo, branch, buildPath, port);
+        return dockerService.deployProject(deploymentId, repo, branch, buildPath, port);
     }
 }
