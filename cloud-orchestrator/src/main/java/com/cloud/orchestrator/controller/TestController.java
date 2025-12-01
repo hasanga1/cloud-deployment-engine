@@ -20,13 +20,14 @@ public class TestController {
         String repo = (String) payload.get("repoUrl");
         String branch = (String) payload.getOrDefault("branch", "main");
         
-        // Read the port, default to 8080 if user doesn't send it
-        // We use String parsing safely in case it comes as a string "3000" or int 3000
+        // Default to root "/" if not provided
+        String buildPath = (String) payload.getOrDefault("buildPath", "."); 
+        
         int port = 8080;
         if (payload.containsKey("port")) {
             port = Integer.parseInt(payload.get("port").toString());
         }
         
-        return dockerService.deployProject(repo, branch, port);
+        return dockerService.deployProject(repo, branch, buildPath, port);
     }
 }
