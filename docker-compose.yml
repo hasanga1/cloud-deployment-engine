@@ -13,6 +13,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - cloud_network
 
   # 2. Zookeeper - Required for Kafka management
   zookeeper:
@@ -23,6 +25,8 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    networks:
+      - cloud_network
 
   # 3. Kafka - The Event Bus
   kafka:
@@ -39,7 +43,9 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    
+    networks:
+      - cloud_network
+
   # 4. THE REVERSE PROXY
   traefik:
     image: traefik:v2.10
@@ -54,6 +60,12 @@ services:
       - "8080:8080" # The Dashboard (Traefik uses 8080 internal, map to something else if conflict)
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro # Needs to see other containers
+    networks:
+      - cloud_network
 
 volumes:
   postgres_data:
+
+networks:
+  cloud_network:
+    name: cloud_network
