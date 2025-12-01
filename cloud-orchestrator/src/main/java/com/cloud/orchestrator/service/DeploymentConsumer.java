@@ -1,0 +1,36 @@
+package com.cloud.orchestrator.service;
+
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Service;
+
+import java.util.Map;
+
+@Service
+public class DeploymentConsumer {
+
+    private final DockerService dockerService;
+
+    public DeploymentConsumer(DockerService dockerService) {
+        this.dockerService = dockerService;
+    }
+
+    @KafkaListener(topics = "deployments.trigger", groupId = "orchestrator-group")
+    public void listen(Map<String, Object> message) {
+        try {
+            System.out.println("📬 Received Deployment Trigger: " + message);
+
+            // Extract data safely
+            String repoUrl = (String) message.get("repoUrl");
+            String branch = (String) message.getOrDefault("branch", "main");
+            String buildPath = (String) message.getOrDefault("buildPath", ".");
+            int port = (int) message.getOrDefault("port", 8080);
+
+            // TRIGGER THE BUILD 🏗️
+            dockerService.deployProject(repoUrl, branch, buildPath, port);
+
+        } catch (Exception e) {
+            System.err.println("❌ Deployment Failed: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+}
