@@ -9,6 +9,7 @@ import com.github.dockerjava.api.model.PortBinding;
 import com.github.dockerjava.api.model.Ports;
 import org.eclipse.jgit.api.Git;
 import org.springframework.stereotype.Service;
+import org.springframework.kafka.core.KafkaTemplate;
 
 import java.io.File;
 import java.io.IOException;
@@ -22,9 +23,11 @@ import java.util.UUID;
 public class DockerService {
 
     private final DockerClient dockerClient;
+    private final KafkaTemplate<String, String> kafkaTemplate;
 
-    public DockerService(DockerClient dockerClient) {
+    public DockerService(DockerClient dockerClient, KafkaTemplate<String, String> kafkaTemplate) {
         this.dockerClient = dockerClient;
+        this.kafkaTemplate = kafkaTemplate;
     }
 
     public String deployProject(String repoUrl, String branch) throws Exception {
@@ -45,7 +48,12 @@ public class DockerService {
                     @Override
                     public void onNext(BuildResponseItem item) {
                         if (item.getStream() != null) {
-                            System.out.print("Build Log: " + item.getStream());
+                            String log = item.getStream().trim();
+                            if (!log.isEmpty()) {
+                                // 📡 STREAMING LOGS TO KAFKA HERE
+                                kafkaTemplate.send("deployment-logs", log);
+                                System.out.println("STREAMING: " + log);
+                            }
                         }
                         super.onNext(item);
                     }
