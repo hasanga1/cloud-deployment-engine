@@ -9,8 +9,9 @@ import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.PortBinding;
 import com.github.dockerjava.api.model.Ports;
 import org.eclipse.jgit.api.Git;
-import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
@@ -20,13 +21,16 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 @Service
 public class DockerService {
 
     private final DockerClient dockerClient;
     private final KafkaTemplate<String, String> kafkaTemplate;
+
+    // Inject the value from application.properties
+    @Value("${docker.network.name}")
+    private String dockerNetwork;
 
     public DockerService(DockerClient dockerClient, KafkaTemplate<String, String> kafkaTemplate) {
         this.dockerClient = dockerClient;
@@ -35,30 +39,28 @@ public class DockerService {
 
     public String deployProject(String deploymentId, String repoUrl, String branch, String buildPath, int internalPort) throws Exception {
     
-        String projectId = UUID.randomUUID().toString().substring(0, 8);
-        String imageName = "app-" + projectId;
+        // 1. USE DEPLOYMENT ID FOR EVERYTHING (Consistency!)
+        // Instead of a random UUID, we use the ID from the database.
+        String appName = "app-" + deploymentId; 
+        String subdomainUrl = "http://" + appName + ".localhost"; // The "Magic URL"
 
         sendUpdate(deploymentId, "IN_PROGRESS");
 
         try {
-            // 1. CLONE (Always clone the whole repo)
-            kafkaTemplate.send("deployment-logs", "Cloning repository...");
+            // --- CLONE ---
+            kafkaTemplate.send("deployment-logs", "⬇️ Cloning repository...");
             File repoRoot = cloneRepository(repoUrl, branch);
             
-            // 2. DETERMINE BUILD CONTEXT
-            // If user says build path is "/backend", we point Docker there.
+            // --- PREPARE BUILD ---
             File buildDir = new File(repoRoot, buildPath); 
-            
             if (!buildDir.exists()) {
-                throw new RuntimeException("Build path does not exist: " + buildDir.getAbsolutePath());
+                throw new RuntimeException("Build path does not exist: " + buildPath);
             }
+            kafkaTemplate.send("deployment-logs", "🔨 Building Docker image from: " + buildPath);
 
-            kafkaTemplate.send("deployment-logs", "Building from context: " + buildPath);
-
-            // 3. BUILD IMAGE
+            // --- BUILD IMAGE ---
             String imageId = dockerClient.buildImageCmd(buildDir)
-                    .withTags(Collections.singleton(imageName))
-                    // .withDockerfile(new File(buildDir, "Dockerfile.dev")) // Optional: if you want to support custom filenames
+                    .withTags(Collections.singleton(appName)) // Tag image with appName
                     .exec(new BuildImageResultCallback() {
                         @Override
                         public void onNext(BuildResponseItem item) {
@@ -73,30 +75,45 @@ public class DockerService {
                     })
                     .awaitImageId();
 
-            // 4. RUN CONTAINER (With Multiple Ports Logic if needed)
+            // --- RUN CONTAINER ---
             int hostPort = findFreePort();
             
-            System.out.println("⚡ Mapping Host Port " + hostPort + " -> Container Port " + internalPort);
+            // Traefik Rule: "If Host matches app-123.localhost, send here"
+            String hostRule = "Host(`" + appName + ".localhost`)";
+
+            System.out.println("🏷️ Traefik Label: " + hostRule);
+            kafkaTemplate.send("deployment-logs", "⚡ Starting container with Traefik Proxy...");
 
             dockerClient.createContainerCmd(imageId)
-                    .withName(imageName)
+                    .withName(appName) // Name the container app-{deploymentId}
                     .withHostConfig(HostConfig.newHostConfig()
                             .withPortBindings(new PortBinding(
                                     Ports.Binding.bindPort(hostPort), 
                                     new ExposedPort(internalPort))) 
+                            .withNetworkMode(dockerNetwork)
                     )
+                    // --- TRAEFIK LABELS ---
+                    .withLabels(Map.of(
+                            "traefik.enable", "true",
+                            "traefik.http.routers." + appName + ".rule", hostRule,
+                            "traefik.http.routers." + appName + ".entrypoints", "web",
+                            // Important: Tell Traefik to route to the INTERNAL port (e.g. 5000), not the random host port
+                            "traefik.http.services." + appName + ".loadbalancer.server.port", String.valueOf(internalPort)
+                    ))
                     .exec();
 
-            dockerClient.startContainerCmd(imageName).exec();
-            sendUpdate(deploymentId, "SUCCESS");
-            kafkaTemplate.send("deployment-logs", "✅ Deployment Successful! URL: http://localhost:" + hostPort);
+            dockerClient.startContainerCmd(appName).exec();
 
-            return "http://localhost:" + hostPort;
+            // ✅ SUCCESS: Send the Magic URL
+            sendUpdate(deploymentId, "SUCCESS");
+            kafkaTemplate.send("deployment-logs", "✅ Deployment Successful! Access App: " + subdomainUrl);
+
+            return subdomainUrl;
+
         } catch (Exception e) {
-            // 3️⃣ NOTIFY FAILURE (If any line above crashes)
             sendUpdate(deploymentId, "FAILED");
             kafkaTemplate.send("deployment-logs", "❌ Deployment Failed: " + e.getMessage());
-            throw e; // Re-throw so the consumer knows it failed
+            throw e; 
         }
     }
 
@@ -125,7 +142,6 @@ public class DockerService {
             Map<String, String> update = new HashMap<>();
             update.put("deploymentId", deploymentId);
             update.put("status", status);
-            // We need to convert Map to JSON String manually since we set ValueSerializer to String
             String json = new ObjectMapper().writeValueAsString(update);
             kafkaTemplate.send("deployments.status", json);
         } catch (Exception e) {
