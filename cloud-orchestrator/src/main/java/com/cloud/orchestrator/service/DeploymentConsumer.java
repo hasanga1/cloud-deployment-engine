@@ -20,13 +20,14 @@ public class DeploymentConsumer {
             System.out.println("📬 Received Deployment Trigger: " + message);
 
             // Extract data safely
+            String deploymentId = (String) message.get("deploymentId");
             String repoUrl = (String) message.get("repoUrl");
             String branch = (String) message.getOrDefault("branch", "main");
             String buildPath = (String) message.getOrDefault("buildPath", ".");
             int port = (int) message.getOrDefault("port", 8080);
 
             // TRIGGER THE BUILD 🏗️
-            dockerService.deployProject(repoUrl, branch, buildPath, port);
+            dockerService.deployProject(deploymentId, repoUrl, branch, buildPath, port);
 
         } catch (Exception e) {
             System.err.println("❌ Deployment Failed: " + e.getMessage());
