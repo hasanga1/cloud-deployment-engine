@@ -39,6 +39,21 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    
+  # 4. THE REVERSE PROXY
+  traefik:
+    image: traefik:v2.10
+    container_name: cloud_traefik
+    command:
+      - "--api.insecure=true" # Enable Dashboard
+      - "--providers.docker=true" # Listen to Docker
+      - "--providers.docker.exposedbydefault=false" # Don't expose Postgres/Kafka by accident
+      - "--entrypoints.web.address=:80" # Listen on HTTP
+    ports:
+      - "80:80"     # The Public Entrypoint
+      - "8080:8080" # The Dashboard (Traefik uses 8080 internal, map to something else if conflict)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro # Needs to see other containers
 
 volumes:
   postgres_data:
