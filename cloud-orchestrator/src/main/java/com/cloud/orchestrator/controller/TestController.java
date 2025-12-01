@@ -16,10 +16,17 @@ public class TestController {
     }
 
     @PostMapping("/deploy")
-    public String triggerDeploy(@RequestBody Map<String, String> payload) throws Exception {
-        String repo = payload.get("repoUrl");
-        String branch = payload.getOrDefault("branch", "main");
+    public String triggerDeploy(@RequestBody Map<String, Object> payload) throws Exception {
+        String repo = (String) payload.get("repoUrl");
+        String branch = (String) payload.getOrDefault("branch", "main");
         
-        return dockerService.deployProject(repo, branch);
+        // Read the port, default to 8080 if user doesn't send it
+        // We use String parsing safely in case it comes as a string "3000" or int 3000
+        int port = 8080;
+        if (payload.containsKey("port")) {
+            port = Integer.parseInt(payload.get("port").toString());
+        }
+        
+        return dockerService.deployProject(repo, branch, port);
     }
 }
