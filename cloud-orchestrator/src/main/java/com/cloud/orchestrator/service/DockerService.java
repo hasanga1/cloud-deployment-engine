@@ -30,19 +30,29 @@ public class DockerService {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    public String deployProject(String repoUrl, String branch, int internalPort) throws Exception {
+    public String deployProject(String repoUrl, String branch, String buildPath, int internalPort) throws Exception {
     
         String projectId = UUID.randomUUID().toString().substring(0, 8);
         String imageName = "app-" + projectId;
 
-        // Notify start
-        kafkaTemplate.send("deployment-logs", "Starting build for " + projectId);
+        // 1. CLONE (Always clone the whole repo)
+        kafkaTemplate.send("deployment-logs", "Cloning repository...");
+        File repoRoot = cloneRepository(repoUrl, branch);
+        
+        // 2. DETERMINE BUILD CONTEXT
+        // If user says build path is "/backend", we point Docker there.
+        File buildDir = new File(repoRoot, buildPath); 
+        
+        if (!buildDir.exists()) {
+            throw new RuntimeException("Build path does not exist: " + buildDir.getAbsolutePath());
+        }
 
-        File projectDir = cloneRepository(repoUrl, branch);
+        kafkaTemplate.send("deployment-logs", "Building from context: " + buildPath);
 
-        // Build the Image (Same as before)
-        String imageId = dockerClient.buildImageCmd(projectDir)
+        // 3. BUILD IMAGE
+        String imageId = dockerClient.buildImageCmd(buildDir)
                 .withTags(Collections.singleton(imageName))
+                // .withDockerfile(new File(buildDir, "Dockerfile.dev")) // Optional: if you want to support custom filenames
                 .exec(new BuildImageResultCallback() {
                     @Override
                     public void onNext(BuildResponseItem item) {
@@ -57,13 +67,9 @@ public class DockerService {
                 })
                 .awaitImageId();
 
-        // --- PORT CONFIGURATION ---
+        // 4. RUN CONTAINER (With Multiple Ports Logic if needed)
         int hostPort = findFreePort();
         
-        // REMOVE the hardcoded 8080
-        // int containerInternalPort = 8080; 
-        
-        // USE the variable passed in
         System.out.println("⚡ Mapping Host Port " + hostPort + " -> Container Port " + internalPort);
 
         dockerClient.createContainerCmd(imageId)
@@ -71,7 +77,7 @@ public class DockerService {
                 .withHostConfig(HostConfig.newHostConfig()
                         .withPortBindings(new PortBinding(
                                 Ports.Binding.bindPort(hostPort), 
-                                new ExposedPort(internalPort))) // Use the variable here!
+                                new ExposedPort(internalPort))) 
                 )
                 .exec();
 
