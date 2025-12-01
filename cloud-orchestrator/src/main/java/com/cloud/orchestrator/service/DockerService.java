@@ -30,18 +30,17 @@ public class DockerService {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    public String deployProject(String repoUrl, String branch) throws Exception {
-        
-        // 1. PROJECT ID / BUILD TAG
+    public String deployProject(String repoUrl, String branch, int internalPort) throws Exception {
+    
         String projectId = UUID.randomUUID().toString().substring(0, 8);
         String imageName = "app-" + projectId;
-        
-        // 2. CLONE REPOSITORY
-        File projectDir = cloneRepository(repoUrl, branch);
-        System.out.println("✅ Cloned to: " + projectDir.getAbsolutePath());
 
-        // 3. BUILD IMAGE
-        // We attach a callback to print logs to console (later we send to Kafka)
+        // Notify start
+        kafkaTemplate.send("deployment-logs", "Starting build for " + projectId);
+
+        File projectDir = cloneRepository(repoUrl, branch);
+
+        // Build the Image (Same as before)
         String imageId = dockerClient.buildImageCmd(projectDir)
                 .withTags(Collections.singleton(imageName))
                 .exec(new BuildImageResultCallback() {
@@ -50,38 +49,34 @@ public class DockerService {
                         if (item.getStream() != null) {
                             String log = item.getStream().trim();
                             if (!log.isEmpty()) {
-                                // 📡 STREAMING LOGS TO KAFKA HERE
                                 kafkaTemplate.send("deployment-logs", log);
-                                System.out.println("STREAMING: " + log);
                             }
                         }
                         super.onNext(item);
                     }
                 })
                 .awaitImageId();
-        
-        System.out.println("✅ Image Built: " + imageId);
 
-        // 4. RUN CONTAINER
+        // --- PORT CONFIGURATION ---
         int hostPort = findFreePort();
-        int containerInternalPort = 8080; // Assuming the user's Dockerfile EXPOSE 8080
+        
+        // REMOVE the hardcoded 8080
+        // int containerInternalPort = 8080; 
+        
+        // USE the variable passed in
+        System.out.println("⚡ Mapping Host Port " + hostPort + " -> Container Port " + internalPort);
 
         dockerClient.createContainerCmd(imageId)
                 .withName(imageName)
                 .withHostConfig(HostConfig.newHostConfig()
                         .withPortBindings(new PortBinding(
                                 Ports.Binding.bindPort(hostPort), 
-                                new ExposedPort(containerInternalPort)))
+                                new ExposedPort(internalPort))) // Use the variable here!
                 )
                 .exec();
 
         dockerClient.startContainerCmd(imageName).exec();
 
-        System.out.println("✅ Container Running on Port: " + hostPort);
-        
-        // 5. CLEANUP
-        // TODO: Delete projectDir to save space
-        
         return "http://localhost:" + hostPort;
     }
 
