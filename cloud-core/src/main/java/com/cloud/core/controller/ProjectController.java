@@ -22,6 +22,11 @@ public class ProjectController {
     // 1. Create a Project
     @PostMapping
     public ResponseEntity<?> createProject(@RequestBody Project project) {
+        String userIdStr = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = Long.parseLong(userIdStr);
+
+        project.setUserId(userId);
+
         // 1. Validate Subdomain (Simple Regex: only letters, numbers, hyphens)
         if (!project.getSubdomain().matches("^[a-z0-9-]+$")) {
             return ResponseEntity.badRequest().body("Subdomain must be lowercase, numbers, or hyphens.");
