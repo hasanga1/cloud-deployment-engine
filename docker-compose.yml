@@ -28,6 +28,20 @@ services:
     networks:
       - cloud_network
 
+  auth_postgres:
+    image: postgres:15
+    container_name: auth_postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: auth_db
+    ports:
+      - "5433:5432" # Note: Exposed on 5433 to avoid conflict
+    networks:
+      - cloud_network
+    volumes:
+      - auth_postgres_data:/var/lib/postgresql/data
+
   # 3. Kafka - The Event Bus
   kafka:
     image: confluentinc/cp-kafka:7.3.0
@@ -65,6 +79,7 @@ services:
 
 volumes:
   postgres_data:
+  auth_postgres_data:
 
 networks:
   cloud_network:
