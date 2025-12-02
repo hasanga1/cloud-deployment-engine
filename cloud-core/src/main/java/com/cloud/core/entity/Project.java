@@ -14,6 +14,9 @@ public class Project {
     private String name;
     private String repoUrl;
     private String branch = "main";
+
+    @Column(unique = true)   // Ensure DB enforces uniqueness too
+    private String subdomain;
     
     // New fields for Monorepo/Microservices support
     private String buildPath = "."; // Default to root
