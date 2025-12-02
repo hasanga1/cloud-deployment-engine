@@ -6,6 +6,7 @@ import com.cloud.core.repository.ProjectRepository;
 import com.cloud.core.service.DeploymentService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @RestController
 @RequestMapping("/api/projects")
