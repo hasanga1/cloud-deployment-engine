@@ -37,12 +37,12 @@ public class DockerService {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    public String deployProject(String deploymentId, String repoUrl, String branch, String buildPath, int internalPort) throws Exception {
+    public String deployProject(String deploymentId, String repoUrl, String branch, String buildPath, int internalPort, String subdomain) throws Exception {
     
         // 1. USE DEPLOYMENT ID FOR EVERYTHING (Consistency!)
         // Instead of a random UUID, we use the ID from the database.
         String appName = "app-" + deploymentId; 
-        String subdomainUrl = "http://" + appName + ".localhost"; // The "Magic URL"
+        String subdomainUrl = "http://" + subdomain + ".localhost";
 
         sendUpdate(deploymentId, "IN_PROGRESS");
 
@@ -77,9 +77,8 @@ public class DockerService {
 
             // --- RUN CONTAINER ---
             int hostPort = findFreePort();
-            
-            // Traefik Rule: "If Host matches app-123.localhost, send here"
-            String hostRule = "Host(`" + appName + ".localhost`)";
+
+            String hostRule = "Host(`" + subdomain + ".localhost`)"; 
 
             System.out.println("🏷️ Traefik Label: " + hostRule);
             kafkaTemplate.send("deployment-logs", "⚡ Starting container with Traefik Proxy...");
@@ -94,11 +93,10 @@ public class DockerService {
                     )
                     // --- TRAEFIK LABELS ---
                     .withLabels(Map.of(
-                            "traefik.enable", "true",
-                            "traefik.http.routers." + appName + ".rule", hostRule,
-                            "traefik.http.routers." + appName + ".entrypoints", "web",
-                            // Important: Tell Traefik to route to the INTERNAL port (e.g. 5000), not the random host port
-                            "traefik.http.services." + appName + ".loadbalancer.server.port", String.valueOf(internalPort)
+                        "traefik.enable", "true",
+                        "traefik.http.routers." + subdomain + ".rule", hostRule, // Router Name = Subdomain
+                        "traefik.http.routers." + subdomain + ".entrypoints", "web",
+                        "traefik.http.services." + subdomain + ".loadbalancer.server.port", String.valueOf(internalPort)
                     ))
                     .exec();
 

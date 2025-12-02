@@ -33,7 +33,7 @@ public class DeploymentConsumer {
     }
 
             // TRIGGER THE BUILD 🏗️
-            dockerService.deployProject(deploymentId, repoUrl, branch, buildPath, port);
+            dockerService.deployProject(deploymentId, repoUrl, branch, buildPath, port, subdomain);
 
         } catch (Exception e) {
             System.err.println("❌ Deployment Failed: " + e.getMessage());
