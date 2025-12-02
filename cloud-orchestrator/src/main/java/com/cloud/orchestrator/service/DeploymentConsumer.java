@@ -25,6 +25,12 @@ public class DeploymentConsumer {
             String branch = (String) message.getOrDefault("branch", "main");
             String buildPath = (String) message.getOrDefault("buildPath", ".");
             int port = (int) message.getOrDefault("port", 8080);
+            String subdomain = (String) message.get("subdomain");
+    
+            // Fallback if null (for backward compatibility)
+            if (subdomain == null || subdomain.isEmpty()) {
+                subdomain = "app-" + message.get("deploymentId");
+    }
 
             // TRIGGER THE BUILD 🏗️
             dockerService.deployProject(deploymentId, repoUrl, branch, buildPath, port);
