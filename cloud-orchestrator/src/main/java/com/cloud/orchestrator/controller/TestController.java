@@ -23,12 +23,16 @@ public class TestController {
         
         // Default to root "/" if not provided
         String buildPath = (String) payload.getOrDefault("buildPath", "."); 
+        String subdomain = (String) payload.get("subdomain");
+        if (subdomain == null || subdomain.isEmpty()) {
+            subdomain = "app-" + deploymentId;
+        }
         
         int port = 8080;
         if (payload.containsKey("port")) {
             port = Integer.parseInt(payload.get("port").toString());
         }
         
-        return dockerService.deployProject(deploymentId, repo, branch, buildPath, port);
+        return dockerService.deployProject(deploymentId, repo, branch, buildPath, port, subdomain);
     }
 }
