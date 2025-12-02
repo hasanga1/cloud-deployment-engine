@@ -43,6 +43,7 @@ public class DeploymentService {
         message.put("branch", project.getBranch());
         message.put("buildPath", project.getBuildPath());
         message.put("port", project.getPort());
+        message.put("subdomain", project.getSubdomain());
 
         // 4. Send to Kafka
         kafkaTemplate.send("deployments.trigger", message);
