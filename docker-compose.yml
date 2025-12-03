@@ -86,6 +86,7 @@ services:
       - AUTH_URI=http://auth-service:9000
       - CORE_URI=http://cloud-core:9001
       - CORE_WS_URI=ws://cloud-core:9001
+      - APP_CORS_ALLOWED_ORIGINS=http://localhost:3000
     depends_on:
       - auth-service
       - cloud-core
