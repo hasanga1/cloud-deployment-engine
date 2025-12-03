@@ -1,0 +1,28 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      routes:
+        # Route 1: Auth Service
+        - id: auth-service
+          # Default to localhost:9000, but allow Docker to override via AUTH_URI
+          uri: ${AUTH_URI:http://localhost:9000}
+          predicates:
+            - Path=/auth/**
+            
+        # Route 2: Cloud Core
+        - id: cloud-core
+          # Default to localhost:9001, but allow Docker to override via CORE_URI
+          uri: ${CORE_URI:http://localhost:9001}
+          predicates:
+            - Path=/api/**
+            
+        # Route 3: WebSockets
+        - id: cloud-ws
+          uri: ${CORE_WS_URI:ws://localhost:9001}
+          predicates:
+            - Path=/ws/**
