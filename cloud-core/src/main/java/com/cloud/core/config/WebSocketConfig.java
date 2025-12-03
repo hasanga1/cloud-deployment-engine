@@ -24,7 +24,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // This is the endpoint the Frontend will connect to
         // We allow Origin "*" for development (so React localhost:3000 can connect)
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*")
-                .withSockJS();
+                .setAllowedOriginPatterns("*");
     }
 }
