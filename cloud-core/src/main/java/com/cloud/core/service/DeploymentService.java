@@ -25,7 +25,7 @@ public class DeploymentService {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    public Deployment triggerDeployment(Long projectId) {
+    public Deployment triggerDeployment(Long projectId, String commitSha) {
         // 1. Fetch Project
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new RuntimeException("Project not found"));
@@ -34,6 +34,7 @@ public class DeploymentService {
         Deployment deployment = new Deployment();
         deployment.setProject(project);
         deployment.setStatus(Deployment.DeploymentStatus.QUEUED);
+        deployment.setCommitSha(commitSha);
         deploymentRepository.save(deployment);
 
         // 3. Prepare Payload for Orchestrator
@@ -44,6 +45,7 @@ public class DeploymentService {
         message.put("buildPath", project.getBuildPath());
         message.put("port", project.getPort());
         message.put("subdomain", project.getSubdomain());
+        message.put("commitSha", commitSha);
 
         // 4. Send to Kafka
         kafkaTemplate.send("deployments.trigger", message);

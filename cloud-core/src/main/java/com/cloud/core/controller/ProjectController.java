@@ -4,11 +4,13 @@ import com.cloud.core.entity.Deployment;
 import com.cloud.core.entity.Project;
 import com.cloud.core.repository.ProjectRepository;
 import com.cloud.core.service.DeploymentService;
+import com.cloud.core.service.GithubService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/projects")
@@ -16,10 +18,12 @@ public class ProjectController {
 
     private final ProjectRepository projectRepository;
     private final DeploymentService deploymentService;
+    private final GithubService githubService;
 
-    public ProjectController(ProjectRepository projectRepository, DeploymentService deploymentService) {
+    public ProjectController(ProjectRepository projectRepository, DeploymentService deploymentService, GithubService githubService) {
         this.projectRepository = projectRepository;
         this.deploymentService = deploymentService;
+        this.githubService = githubService;
     }
 
     // 1. Create a Project
@@ -46,8 +50,10 @@ public class ProjectController {
 
     // 2. Trigger a Deployment for a Project
     @PostMapping("/{projectId}/deploy")
-    public Deployment deployProject(@PathVariable Long projectId) {
-        return deploymentService.triggerDeployment(projectId);
+    public Deployment deployProject(@PathVariable Long projectId, @RequestBody(required = false) Map<String, String> payload) {
+        // If user sends specific commit, use it. Otherwise null (Orchestrator will pick latest).
+        String commitSha = (payload != null) ? payload.get("commitSha") : null;
+        return deploymentService.triggerDeployment(projectId, commitSha);
     }
 
     @GetMapping
@@ -57,5 +63,11 @@ public class ProjectController {
         Long userId = Long.parseLong(userIdStr);
         
         return projectRepository.findAllByUserId(userId);
+    }
+
+    @GetMapping("/{projectId}/commits")
+    public List<Map<String, String>> getProjectCommits(@PathVariable Long projectId) {
+        Project project = projectRepository.findById(projectId).orElseThrow();
+        return githubService.getCommits(project.getRepoUrl(), project.getBranch());
     }
 }
