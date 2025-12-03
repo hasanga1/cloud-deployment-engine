@@ -5,6 +5,7 @@ import com.cloud.core.entity.Project;
 import com.cloud.core.repository.ProjectRepository;
 import com.cloud.core.service.DeploymentService;
 import com.cloud.core.service.GithubService;
+import com.cloud.core.repository.DeploymentRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -19,11 +20,13 @@ public class ProjectController {
     private final ProjectRepository projectRepository;
     private final DeploymentService deploymentService;
     private final GithubService githubService;
+    private final DeploymentRepository deploymentRepository;
 
-    public ProjectController(ProjectRepository projectRepository, DeploymentService deploymentService, GithubService githubService) {
+    public ProjectController(ProjectRepository projectRepository, DeploymentService deploymentService, GithubService githubService, DeploymentRepository deploymentRepository) {
         this.projectRepository = projectRepository;
         this.deploymentService = deploymentService;
         this.githubService = githubService;
+        this.deploymentRepository = deploymentRepository;
     }
 
     // 1. Create a Project
@@ -69,5 +72,10 @@ public class ProjectController {
     public List<Map<String, String>> getProjectCommits(@PathVariable Long projectId) {
         Project project = projectRepository.findById(projectId).orElseThrow();
         return githubService.getCommits(project.getRepoUrl(), project.getBranch());
+    }
+
+    @GetMapping("/{projectId}/deployments")
+    public List<Deployment> getProjectDeployments(@PathVariable Long projectId) {
+        return deploymentRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId);
     }
 }
