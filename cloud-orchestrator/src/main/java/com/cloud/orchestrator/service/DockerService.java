@@ -28,6 +28,7 @@ public class DockerService {
     private final DockerClient dockerClient;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
+
     // Inject the value from application.properties
     @Value("${docker.network.name}")
     private String dockerNetwork;
@@ -37,7 +38,7 @@ public class DockerService {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    public String deployProject(String deploymentId, String repoUrl, String branch, String buildPath, int internalPort, String subdomain) throws Exception {
+    public String deployProject(String deploymentId, String repoUrl, String branch, String buildPath, int internalPort, String subdomain, String commitSha) throws Exception {
     
         // 1. USE DEPLOYMENT ID FOR EVERYTHING (Consistency!)
         // Instead of a random UUID, we use the ID from the database.
@@ -49,7 +50,7 @@ public class DockerService {
         try {
             // --- CLONE ---
             kafkaTemplate.send("deployment-logs", "⬇️ Cloning repository...");
-            File repoRoot = cloneRepository(repoUrl, branch);
+            File repoRoot = cloneRepository(repoUrl, branch, commitSha);
             
             // --- PREPARE BUILD ---
             File buildDir = new File(repoRoot, buildPath); 
@@ -117,13 +118,21 @@ public class DockerService {
 
     // --- Helper Methods ---
 
-    private File cloneRepository(String repoUrl, String branch) throws Exception {
+    private File cloneRepository(String repoUrl, String branch, String commitSha) throws Exception {
         Path tempDir = Files.createTempDirectory("cloud-build-");
-        Git.cloneRepository()
+        Git git = Git.cloneRepository()
                 .setURI(repoUrl)
                 .setDirectory(tempDir.toFile())
                 .setBranch(branch)
                 .call();
+
+        if (commitSha != null && !commitSha.isEmpty()) {
+            System.out.println("🔀 Checking out commit: " + commitSha);
+            git.checkout().setName(commitSha).call();
+        }
+
+        git.close();
+
         return tempDir.toFile();
     }
 
