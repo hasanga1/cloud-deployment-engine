@@ -2,7 +2,9 @@ package com.cloud.core.repository;
 
 import com.cloud.core.entity.Project;
 import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
 
 public interface ProjectRepository extends JpaRepository<Project, Long> {
     boolean existsBySubdomain(String subdomain);
+    List<Project> findAllByUserId(Long userId);
 }

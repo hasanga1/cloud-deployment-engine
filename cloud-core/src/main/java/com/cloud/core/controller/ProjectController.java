@@ -8,6 +8,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/projects")
 public class ProjectController {
@@ -46,5 +48,14 @@ public class ProjectController {
     @PostMapping("/{projectId}/deploy")
     public Deployment deployProject(@PathVariable Long projectId) {
         return deploymentService.triggerDeployment(projectId);
+    }
+
+    @GetMapping
+    public List<Project> getMyProjects() {
+        // Extract User ID from Token (Security Context)
+        String userIdStr = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = Long.parseLong(userIdStr);
+        
+        return projectRepository.findAllByUserId(userId);
     }
 }
