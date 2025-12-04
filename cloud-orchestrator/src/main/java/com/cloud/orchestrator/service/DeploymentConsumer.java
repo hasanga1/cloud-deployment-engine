@@ -26,6 +26,7 @@ public class DeploymentConsumer {
             String buildPath = (String) message.getOrDefault("buildPath", ".");
             int port = (int) message.getOrDefault("port", 8080);
             String subdomain = (String) message.get("subdomain");
+            String commitSha = (String) message.get("commitSha");
     
             // Fallback if null (for backward compatibility)
             if (subdomain == null || subdomain.isEmpty()) {
@@ -33,7 +34,7 @@ public class DeploymentConsumer {
     }
 
             // TRIGGER THE BUILD 🏗️
-            dockerService.deployProject(deploymentId, repoUrl, branch, buildPath, port, subdomain);
+            dockerService.deployProject(deploymentId, repoUrl, branch, buildPath, port, subdomain, commitSha);
 
         } catch (Exception e) {
             System.err.println("❌ Deployment Failed: " + e.getMessage());

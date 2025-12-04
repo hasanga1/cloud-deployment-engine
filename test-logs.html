@@ -10,7 +10,7 @@
     <div id="logs" style="background: black; color: lime; padding: 10px; font-family: monospace; height: 400px; overflow-y: scroll;"></div>
 
     <script type="text/javascript">
-        var socket = new SockJS('http://localhost:8081/ws');
+        const socket = new WebSocket("ws://localhost:8081/ws")
         var stompClient = Stomp.over(socket);
 
         stompClient.connect({}, function (frame) {

@@ -16,6 +16,9 @@ public class Deployment {
     @JoinColumn(name = "project_id")
     private Project project;
 
+    private String commitSha;
+    private String commitMessage;
+
     @Enumerated(EnumType.STRING)
     private DeploymentStatus status;
 

@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # 1. PostgreSQL - Holds project info and deployment history
+  # --- INFRASTRUCTURE (Databases, Kafka) ---
   postgres:
     image: postgres:15
     container_name: cloud_postgres
@@ -11,12 +11,25 @@ services:
       POSTGRES_DB: cloud_deploy_db
     ports:
       - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
     networks:
       - cloud_network
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
-  # 2. Zookeeper - Required for Kafka management
+  auth_postgres:
+    image: postgres:15
+    container_name: auth_postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: auth_db
+    ports:
+      - "5433:5432"
+    networks:
+      - cloud_network
+    volumes:
+      - auth_postgres_data:/var/lib/postgresql/data
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.0
     container_name: cloud_zookeeper
@@ -28,7 +41,6 @@ services:
     networks:
       - cloud_network
 
-  # 3. Kafka - The Event Bus
   kafka:
     image: confluentinc/cp-kafka:7.3.0
     container_name: cloud_kafka
@@ -39,32 +51,92 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-      # Listeners allow us to connect from host (localhost:9092) and inside docker
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     networks:
       - cloud_network
 
-  # 4. THE REVERSE PROXY
   traefik:
     image: traefik:v2.10
     container_name: cloud_traefik
     command:
-      - "--api.insecure=true" # Enable Dashboard
-      - "--providers.docker=true" # Listen to Docker
-      - "--providers.docker.exposedbydefault=false" # Don't expose Postgres/Kafka by accident
-      - "--entrypoints.web.address=:80" # Listen on HTTP
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
     ports:
-      - "80:80"     # The Public Entrypoint
-      - "8080:8080" # The Dashboard (Traefik uses 8080 internal, map to something else if conflict)
+      - "80:80"
+      - "8090:8080"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro # Needs to see other containers
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - cloud_network
+
+  # --- APPLICATION SERVICES (NEW!) ---
+
+  # 1. API GATEWAY (Publicly Accessible)
+  api-gateway:
+    build: ./api-gateway
+    container_name: cloud_gateway
+    ports:
+      - "8081:8081"
+    environment:
+      - SERVER_PORT=8081
+      # 👇 SIMPLE VARIABLES (Matches application.yml)
+      - AUTH_URI=http://auth-service:9000
+      - CORE_URI=http://cloud-core:9001
+      - CORE_WS_URI=ws://cloud-core:9001
+      - APP_CORS_ALLOWED_ORIGINS=http://localhost:3000
+    depends_on:
+      - auth-service
+      - cloud-core
+    networks:
+      - cloud_network
+
+  # 2. AUTH SERVICE (Private / Hidden)
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    # NO PORTS MAPPED! <--- LOCKED DOWN
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://auth_postgres:5432/auth_db
+    depends_on:
+      - auth_postgres
+    networks:
+      - cloud_network
+
+  # 3. CLOUD CORE (Private / Hidden)
+  cloud-core:
+    build: ./cloud-core
+    container_name: cloud-core
+    # NO PORTS MAPPED! <--- LOCKED DOWN
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/cloud_deploy_db
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      - postgres
+      - kafka
+    networks:
+      - cloud_network
+
+  # 4. ORCHESTRATOR (Private / Hidden)
+  cloud-orchestrator:
+    build: ./cloud-orchestrator
+    container_name: cloud-orchestrator
+    # NO PORTS MAPPED! <--- LOCKED DOWN
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # Needs to talk to Docker
+    environment:
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - DOCKER_NETWORK_NAME=cloud_network
+    depends_on:
+      - kafka
     networks:
       - cloud_network
 
 volumes:
   postgres_data:
+  auth_postgres_data:
 
 networks:
   cloud_network:

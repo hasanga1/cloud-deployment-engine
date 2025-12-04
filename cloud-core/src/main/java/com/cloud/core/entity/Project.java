@@ -21,4 +21,5 @@ public class Project {
     // New fields for Monorepo/Microservices support
     private String buildPath = "."; // Default to root
     private int port = 8080;        // Default port
+    private Long userId;
 }
