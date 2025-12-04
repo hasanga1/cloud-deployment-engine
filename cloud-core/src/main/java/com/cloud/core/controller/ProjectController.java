@@ -5,6 +5,8 @@ import com.cloud.core.entity.Project;
 import com.cloud.core.repository.ProjectRepository;
 import com.cloud.core.service.DeploymentService;
 import com.cloud.core.service.GithubService;
+import com.cloud.core.util.EncryptionUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.cloud.core.repository.DeploymentRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,6 +14,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Collections;
 
 @RestController
 @RequestMapping("/api/projects")
@@ -21,12 +24,14 @@ public class ProjectController {
     private final DeploymentService deploymentService;
     private final GithubService githubService;
     private final DeploymentRepository deploymentRepository;
+    private final EncryptionUtil encryptionUtil;
 
-    public ProjectController(ProjectRepository projectRepository, DeploymentService deploymentService, GithubService githubService, DeploymentRepository deploymentRepository) {
+    public ProjectController(ProjectRepository projectRepository, DeploymentService deploymentService, GithubService githubService, DeploymentRepository deploymentRepository, EncryptionUtil encryptionUtil) {
         this.projectRepository = projectRepository;
         this.deploymentService = deploymentService;
         this.githubService = githubService;
         this.deploymentRepository = deploymentRepository;
+        this.encryptionUtil = encryptionUtil;
     }
 
     // 1. Create a Project
@@ -95,5 +100,52 @@ public class ProjectController {
         }
 
         return ResponseEntity.ok(project);
+    }
+
+    @PostMapping("/{projectId}/envs")
+    public ResponseEntity<?> updateEnvs(@PathVariable Long projectId, @RequestBody Map<String, String> envs) {
+        Project project = projectRepository.findById(projectId).orElseThrow();
+
+        System.out.println("Updating envs for project " + projectId + ": " + envs);
+        
+        // 1. Convert Map to JSON String
+        try {
+            String jsonString = new ObjectMapper().writeValueAsString(envs);
+
+            System.out.println("JSON String: " + jsonString);
+            
+            // 2. Encrypt
+            String encrypted = encryptionUtil.encrypt(jsonString);
+
+            System.out.println("Encrypted Envs: " + encrypted);
+            
+            // 3. Save
+            project.setEnvs(encrypted);
+            projectRepository.save(project);
+            
+            return ResponseEntity.ok("Environment variables updated");
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Failed to save envs");
+        }
+    }
+
+    @GetMapping("/{projectId}/envs")
+    public ResponseEntity<?> getEnvs(@PathVariable Long projectId) {
+        Project project = projectRepository.findById(projectId).orElseThrow();
+        
+        if (project.getEnvs() == null || project.getEnvs().isEmpty()) {
+            return ResponseEntity.ok(Collections.emptyMap());
+        }
+
+        try {
+            // 1. Decrypt
+            String decrypted = encryptionUtil.decrypt(project.getEnvs());
+            
+            // 2. Convert back to Map
+            Map<String, String> envMap = new ObjectMapper().readValue(decrypted, new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {});
+            return ResponseEntity.ok(envMap);
+        } catch (Exception e) {
+             return ResponseEntity.internalServerError().body("Failed to decrypt envs");
+        }
     }
 }
