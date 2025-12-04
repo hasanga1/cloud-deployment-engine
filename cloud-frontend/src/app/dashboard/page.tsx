@@ -86,6 +86,7 @@ export default function Dashboard() {
             <div
               key={project.id}
               className="bg-gray-800 p-6 rounded-lg border border-gray-700 flex justify-between items-center"
+              onClick={() => router.push(`/project/${project.id}`)}
             >
               <div>
                 <h3 className="text-xl font-semibold">{project.name}</h3>
