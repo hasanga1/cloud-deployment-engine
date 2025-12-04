@@ -103,8 +103,8 @@ public class DockerService {
 
             dockerClient.startContainerCmd(appName).exec();
 
-            // ✅ SUCCESS: Send the Magic URL
-            sendUpdate(deploymentId, "SUCCESS");
+            // ✅ RUNNING: Send the Magic URL
+            sendUpdate(deploymentId, "RUNNING");
             kafkaTemplate.send("deployment-logs", "✅ Deployment Successful! Access App: " + subdomainUrl);
 
             return subdomainUrl;
