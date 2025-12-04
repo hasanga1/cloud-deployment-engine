@@ -155,4 +155,26 @@ public class DockerService {
             e.printStackTrace();
         }
     }
+
+    public void stopContainer(String deploymentId) {
+        String containerName = "app-" + deploymentId;
+        try {
+            System.out.println("🛑 Stopping container: " + containerName);
+            
+            // 1. Stop it
+            dockerClient.stopContainerCmd(containerName).exec();
+            System.out.println("✅ Container stopped successfully");
+            
+            // 2. Remove it (So it doesn't clutter Docker)
+            // If you want to "Restart" later, you'd need to just stop. 
+            // But usually "Stop" in PaaS means "Kill".
+            dockerClient.removeContainerCmd(containerName).exec();
+            System.out.println("✅ Container removed successfully");
+            
+            sendUpdate(deploymentId, "STOPPED"); // Notify Core
+        } catch (Exception e) {
+            System.err.println("Failed to stop container: " + e.getMessage());
+            // It might already be stopped or not exist
+        }
+    }
 }
