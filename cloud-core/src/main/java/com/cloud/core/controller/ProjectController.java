@@ -78,4 +78,22 @@ public class ProjectController {
     public List<Deployment> getProjectDeployments(@PathVariable Long projectId) {
         return deploymentRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId);
     }
+
+    @GetMapping("/{projectId}")
+    public ResponseEntity<?> getProject(@PathVariable Long projectId) {
+        // 1. Get the current logged-in user ID
+        String userIdStr = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long currentUserId = Long.parseLong(userIdStr);
+
+        // 2. Find the project
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found"));
+
+        // 3. SECURITY CHECK: Does this project belong to this user? 🚨
+        if (!project.getUserId().equals(currentUserId)) {
+            return ResponseEntity.status(403).body("You do not have permission to view this project.");
+        }
+
+        return ResponseEntity.ok(project);
+    }
 }
