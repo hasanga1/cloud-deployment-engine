@@ -18,8 +18,10 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -38,7 +40,7 @@ public class DockerService {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    public String deployProject(String deploymentId, String repoUrl, String branch, String buildPath, int internalPort, String subdomain, String commitSha) throws Exception {
+    public String deployProject(String deploymentId, String repoUrl, String branch, String buildPath, int internalPort, String subdomain, String commitSha, Map<String, String> envVars) throws Exception {
     
         // 1. USE DEPLOYMENT ID FOR EVERYTHING (Consistency!)
         // Instead of a random UUID, we use the ID from the database.
@@ -84,6 +86,11 @@ public class DockerService {
             System.out.println("🏷️ Traefik Label: " + hostRule);
             kafkaTemplate.send("deployment-logs", "⚡ Starting container with Traefik Proxy...");
 
+            List<String> envList = new ArrayList<>();
+            for (Map.Entry<String, String> entry : envVars.entrySet()) {
+                envList.add(entry.getKey() + "=" + entry.getValue());
+            }
+
             dockerClient.createContainerCmd(imageId)
                     .withName(appName) // Name the container app-{deploymentId}
                     .withHostConfig(HostConfig.newHostConfig()
@@ -99,6 +106,7 @@ public class DockerService {
                         "traefik.http.routers." + subdomain + ".entrypoints", "web",
                         "traefik.http.services." + subdomain + ".loadbalancer.server.port", String.valueOf(internalPort)
                     ))
+                    .withEnv(envList)
                     .exec();
 
             dockerClient.startContainerCmd(appName).exec();

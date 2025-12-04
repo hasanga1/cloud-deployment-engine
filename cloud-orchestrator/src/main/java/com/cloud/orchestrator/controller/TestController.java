@@ -3,6 +3,7 @@ package com.cloud.orchestrator.controller;
 import com.cloud.orchestrator.service.DockerService;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -28,12 +29,24 @@ public class TestController {
         if (subdomain == null || subdomain.isEmpty()) {
             subdomain = "app-" + deploymentId;
         }
+        Map<String, String> env = new HashMap<>();
+        Object envObj = payload.get("env");
+        if (envObj instanceof Map) {
+            Map<?, ?> rawEnv = (Map<?, ?>) envObj;
+            for (Map.Entry<?, ?> entry : rawEnv.entrySet()) {
+                Object k = entry.getKey();
+                Object v = entry.getValue();
+                if (k != null && v != null) {
+                    env.put(k.toString(), v.toString());
+                }
+            }
+        }
         
         int port = 8080;
         if (payload.containsKey("port")) {
             port = Integer.parseInt(payload.get("port").toString());
         }
         
-        return dockerService.deployProject(deploymentId, repo, branch, buildPath, port, subdomain, commitSha);
+        return dockerService.deployProject(deploymentId, repo, branch, buildPath, port, subdomain, commitSha, env);
     }
 }
