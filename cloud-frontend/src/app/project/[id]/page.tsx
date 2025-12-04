@@ -23,7 +23,7 @@ export default function ProjectDetails() {
   const [loading, setLoading] = useState(false);
 
   // Computed State: Find the currently running deployment
-  const activeDeployment = deployments.find(d => d.status === 'SUCCESS');
+  const activeDeployment = deployments.find(d => d.status === 'RUNNING');
   const isRunning = !!activeDeployment;
 
   useEffect(() => {
@@ -161,7 +161,7 @@ export default function ProjectDetails() {
               <tr key={d.id} className="hover:bg-gray-750 transition-colors">
                 <td className="p-4">
                   <span className={`px-2 py-1 rounded text-xs font-bold ${
-                    d.status === 'SUCCESS' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                    d.status === 'RUNNING' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
                     d.status === 'IN_PROGRESS' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
                     d.status === 'STOPPED' ? 'bg-gray-500/10 text-gray-400 border border-gray-500/20' :
                     'bg-red-500/10 text-red-400 border border-red-500/20'
