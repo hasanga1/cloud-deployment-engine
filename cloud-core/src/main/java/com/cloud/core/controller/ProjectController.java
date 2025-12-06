@@ -85,7 +85,7 @@ public class ProjectController {
     @GetMapping("/{projectId}/commits")
     public List<Map<String, String>> getProjectCommits(@PathVariable Long projectId) {
         Project project = projectRepository.findById(projectId).orElseThrow();
-        return githubService.getCommits(project.getRepoUrl(), project.getBranch());
+        return githubService.getCommits(project.getRepoUrl(), project.getBranch(), project.getGitToken());
     }
 
     @GetMapping("/{projectId}/deployments")
