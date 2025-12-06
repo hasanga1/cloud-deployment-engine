@@ -30,6 +30,9 @@ public class Project {
         return envs;
     }
 
+    @Column(columnDefinition = "TEXT") 
+    private String gitToken;
+
     public void setEnvs(String envs) {
         this.envs = envs;
     }

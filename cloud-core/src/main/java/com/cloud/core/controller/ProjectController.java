@@ -52,6 +52,15 @@ public class ProjectController {
             return ResponseEntity.badRequest().body("Subdomain '" + project.getSubdomain() + "' is already taken!");
         }
 
+        if (project.getGitToken() != null && !project.getGitToken().isEmpty()) {
+            try {
+                String encryptedToken = encryptionUtil.encrypt(project.getGitToken());
+                project.setGitToken(encryptedToken);
+            } catch (Exception e) {
+                return ResponseEntity.internalServerError().body("Failed to encrypt token");
+            }
+        }
+
         // 3. Save
         return ResponseEntity.ok(projectRepository.save(project));
     }

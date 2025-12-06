@@ -37,6 +37,15 @@ public class DeploymentService {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new RuntimeException("Project not found"));
 
+        String gitToken = null;
+        if (project.getGitToken() != null && !project.getGitToken().isEmpty()) {
+            try {
+                gitToken = encryptionUtil.decrypt(project.getGitToken());
+            } catch (Exception e) {
+                System.err.println("Failed to decrypt git token");
+            }
+        }
+
         Map<String, String> envVars = new HashMap<>();
         if (project.getEnvs() != null && !project.getEnvs().isEmpty()) {
             try {
@@ -64,6 +73,7 @@ public class DeploymentService {
         message.put("subdomain", project.getSubdomain());
         message.put("commitSha", commitSha);
         message.put("env", envVars);
+        message.put("gitToken", gitToken);
 
         // 4. Send to Kafka
         kafkaTemplate.send("deployments.trigger", message);
