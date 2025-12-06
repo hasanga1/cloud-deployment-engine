@@ -8,8 +8,11 @@ import com.cloud.core.service.GithubService;
 import com.cloud.core.util.EncryptionUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.cloud.core.repository.DeploymentRepository;
+
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
@@ -32,6 +35,24 @@ public class ProjectController {
         this.githubService = githubService;
         this.deploymentRepository = deploymentRepository;
         this.encryptionUtil = encryptionUtil;
+    }
+
+    // --- 🔒 SECURITY HELPER (The Reuse Logic) ---
+    private Project getAuthorizedProject(Long projectId) {
+        // 1. Get Current User ID
+        String userIdStr = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long currentUserId = Long.parseLong(userIdStr);
+
+        // 2. Fetch Project
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+
+        // 3. Check Ownership
+        if (!project.getUserId().equals(currentUserId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have permission to access this project.");
+        }
+
+        return project;
     }
 
     // 1. Create a Project
@@ -69,8 +90,9 @@ public class ProjectController {
     @PostMapping("/{projectId}/deploy")
     public Deployment deployProject(@PathVariable Long projectId, @RequestBody(required = false) Map<String, String> payload) {
         // If user sends specific commit, use it. Otherwise null (Orchestrator will pick latest).
+        Project project = getAuthorizedProject(projectId);
         String commitSha = (payload != null) ? payload.get("commitSha") : null;
-        return deploymentService.triggerDeployment(projectId, commitSha);
+        return deploymentService.triggerDeployment(project.getId(), commitSha);
     }
 
     @GetMapping
@@ -84,36 +106,25 @@ public class ProjectController {
 
     @GetMapping("/{projectId}/commits")
     public List<Map<String, String>> getProjectCommits(@PathVariable Long projectId) {
-        Project project = projectRepository.findById(projectId).orElseThrow();
+        Project project = getAuthorizedProject(projectId);
         return githubService.getCommits(project.getRepoUrl(), project.getBranch(), project.getGitToken());
     }
 
     @GetMapping("/{projectId}/deployments")
     public List<Deployment> getProjectDeployments(@PathVariable Long projectId) {
-        return deploymentRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId);
+        Project project = getAuthorizedProject(projectId);
+        return deploymentRepository.findAllByProjectIdOrderByCreatedAtDesc(project.getId());
     }
 
     @GetMapping("/{projectId}")
     public ResponseEntity<?> getProject(@PathVariable Long projectId) {
-        // 1. Get the current logged-in user ID
-        String userIdStr = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        Long currentUserId = Long.parseLong(userIdStr);
-
-        // 2. Find the project
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new RuntimeException("Project not found"));
-
-        // 3. SECURITY CHECK: Does this project belong to this user? 🚨
-        if (!project.getUserId().equals(currentUserId)) {
-            return ResponseEntity.status(403).body("You do not have permission to view this project.");
-        }
-
+        Project project = getAuthorizedProject(projectId);
         return ResponseEntity.ok(project);
     }
 
     @PostMapping("/{projectId}/envs")
     public ResponseEntity<?> updateEnvs(@PathVariable Long projectId, @RequestBody Map<String, String> envs) {
-        Project project = projectRepository.findById(projectId).orElseThrow();
+        Project project = getAuthorizedProject(projectId);
 
         System.out.println("Updating envs for project " + projectId + ": " + envs);
         
@@ -140,7 +151,7 @@ public class ProjectController {
 
     @GetMapping("/{projectId}/envs")
     public ResponseEntity<?> getEnvs(@PathVariable Long projectId) {
-        Project project = projectRepository.findById(projectId).orElseThrow();
+        Project project = getAuthorizedProject(projectId);
         
         if (project.getEnvs() == null || project.getEnvs().isEmpty()) {
             return ResponseEntity.ok(Collections.emptyMap());
