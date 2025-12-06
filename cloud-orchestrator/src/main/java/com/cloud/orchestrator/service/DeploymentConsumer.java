@@ -28,6 +28,7 @@ public class DeploymentConsumer {
             int port = (int) message.getOrDefault("port", 8080);
             String subdomain = (String) message.get("subdomain");
             String commitSha = (String) message.get("commitSha");
+            String gitToken = (String) message.get("gitToken");
     // Safely extract environment variables map with type checks
     Map<String, String> env = new HashMap<>();
     Object envObj = message.get("env");
@@ -48,7 +49,7 @@ public class DeploymentConsumer {
     }
 
             // TRIGGER THE BUILD 🏗️
-            dockerService.deployProject(deploymentId, repoUrl, branch, buildPath, port, subdomain, commitSha, env);
+            dockerService.deployProject(deploymentId, repoUrl, branch, buildPath, port, subdomain, commitSha, env, gitToken);
 
         } catch (Exception e) {
             System.err.println("❌ Deployment Failed: " + e.getMessage());

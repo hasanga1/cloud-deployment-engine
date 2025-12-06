@@ -25,6 +25,7 @@ public class TestController {
         // Default to root "/" if not provided
         String buildPath = (String) payload.getOrDefault("buildPath", "."); 
         String commitSha = (String) payload.get("commitSha");
+        String gitToken = (String) payload.get("gitToken");
         String subdomain = (String) payload.get("subdomain");
         if (subdomain == null || subdomain.isEmpty()) {
             subdomain = "app-" + deploymentId;
@@ -47,6 +48,6 @@ public class TestController {
             port = Integer.parseInt(payload.get("port").toString());
         }
         
-        return dockerService.deployProject(deploymentId, repo, branch, buildPath, port, subdomain, commitSha, env);
+        return dockerService.deployProject(deploymentId, repo, branch, buildPath, port, subdomain, commitSha, env, gitToken);
     }
 }
