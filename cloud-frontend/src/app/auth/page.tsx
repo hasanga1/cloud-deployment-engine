@@ -1,29 +1,40 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Cloud, Mail, Lock, ArrowRight, ShieldCheck, CheckCircle2 } from "lucide-react";
+import {
+  Cloud,
+  Mail,
+  Lock,
+  ArrowRight,
+  ShieldCheck,
+  CheckCircle2,
+  Check,
+} from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { fakeApi } from "@/lib/fakeapi";
 import api from "@/lib/api";
 
-// Added new states to separate OTP check from Password Reset
-type AuthView = 
-  | "LOGIN" 
-  | "REGISTER" 
-  | "OTP_VERIFY" 
-  | "FORGOT_REQUEST" 
-  | "FORGOT_OTP"       // Step 2 of Forgot: Enter OTP
-  | "FORGOT_NEW_PASS"; // Step 3 of Forgot: Enter New Password
+type AuthView =
+  | "LOGIN"
+  | "REGISTER"
+  | "OTP_VERIFY"
+  | "FORGOT_REQUEST"
+  | "FORGOT_OTP"
+  | "FORGOT_NEW_PASS";
 
 export default function AuthPage() {
   const router = useRouter();
   const [view, setView] = useState<AuthView>("LOGIN");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [showForgotLink, setShowForgotLink] = useState(false);
   
+  // State for Error Message AND Error Target (which field is wrong)
+  const [error, setError] = useState("");
+  const [errorTarget, setErrorTarget] = useState<"email" | "password" | "confirmPassword" | "otp" | "general" | "">("");
+  
+  const [showForgotLink, setShowForgotLink] = useState(false);
+
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -33,9 +44,33 @@ export default function AuthPage() {
     otp: "",
   });
 
+  // --- Password Strength Logic ---
+  const [passwordCriteria, setPasswordCriteria] = useState([
+    { label: "At least 8 characters", valid: false, regex: /.{8,}/ },
+    { label: "Uppercase letter", valid: false, regex: /[A-Z]/ },
+    { label: "Number", valid: false, regex: /[0-9]/ },
+    { label: "Special symbol (!@#$)", valid: false, regex: /[!@#$%^&*(),.?":{}|<>]/ },
+  ]);
+
+  useEffect(() => {
+    const newCriteria = passwordCriteria.map((c) => ({
+      ...c,
+      valid: c.regex.test(formData.password),
+    }));
+    setPasswordCriteria(newCriteria);
+  }, [formData.password]);
+
+  const isPasswordValid = passwordCriteria.every((c) => c.valid);
+
+  // --- Input Handler ---
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-    setError(""); 
+    // Clear errors when user types to improve UX
+    if (error) {
+      setError("");
+      setErrorTarget("");
+    }
   };
 
   // --- Handlers ---
@@ -44,11 +79,22 @@ export default function AuthPage() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await fakeApi.login({ email: formData.email, password: formData.password });
+      const res = await api.post("/auth/login", {
+        email: formData.email,
+        password: formData.password,
+      });
+      localStorage.setItem("token", res.data.token);
       router.push("/dashboard");
     } catch (err: any) {
-      setError(err.message || "Login failed");
-      if(formData.password !== "") setShowForgotLink(true);
+      const status = err?.response?.status;
+      if (status === 400) {
+        setError("Invalid credentials");
+        setErrorTarget("general"); // Login errors are usually general security/privacy
+      } else {
+        setError(err?.message || "Login failed");
+        setErrorTarget("general");
+      }
+      if (formData.password !== "") setShowForgotLink(true);
     } finally {
       setIsLoading(false);
     }
@@ -56,93 +102,153 @@ export default function AuthPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
+    
+    // 1. Validation Checks
+    if (!isPasswordValid) {
+      setError("Please meet all password requirements.");
+      setErrorTarget("password"); // Target the Password field
       return;
     }
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
+      setErrorTarget("confirmPassword"); // Target the Confirm field
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await fakeApi.register(formData);
+      // 2. Check if email already exists
+      const emailCheckRes = await api.post("/auth/check-email", {
+        email: formData.email,
+      });
+      
+      if (emailCheckRes.data.exists) {
+        setError("Email is already registered");
+        setErrorTarget("email"); // Target the Email field specifically
+        setIsLoading(false);
+        return;
+      }
+
+      // 3. Send the OTP code HERE
+      await api.post("/auth/send-code", {
+        email: formData.email
+      });
+
+      // 4. Proceed if email is unique and code sent
       setView("OTP_VERIFY");
       setError("");
+      setErrorTarget("");
     } catch (err: any) {
       setError(err.message);
+      setErrorTarget("general");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handle OTP for Registration
   const handleRegisterOtpVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await fakeApi.verifyOtp(formData.otp);
-      router.push("/dashboard");
+      // If OTP is correct, register the user
+      await api.post("/auth/register", {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        password: formData.password,
+        code: formData.otp,
+      });
+      setError("");
+      setErrorTarget("");
+      setShowForgotLink(false);
+      setFormData({
+        firstName: "",
+        lastName: "",
+        email: "",
+        password: "",
+        confirmPassword: "",
+        otp: "",
+      });
+      setView("LOGIN");
     } catch (err: any) {
       setError("Invalid OTP. Try 123456");
+      setErrorTarget("otp");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 1. Forgot Password: Request
   const handleForgotRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
       await fakeApi.requestPasswordReset(formData.email);
-      setView("FORGOT_OTP"); // Go to OTP step only
+      setView("FORGOT_OTP");
       setError("");
-      // Clear OTP field in case it has old data
-      setFormData(prev => ({ ...prev, otp: "" }));
+      setErrorTarget("");
+      setFormData((prev) => ({ ...prev, otp: "" }));
     } catch (err: any) {
       setError(err.message);
+      setErrorTarget("email");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 2. Forgot Password: Verify OTP
   const handleForgotOtpVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      // Re-using verifyOtp for simulation
-      await fakeApi.verifyOtp(formData.otp); 
-      setView("FORGOT_NEW_PASS"); // Go to New Password step
+      await fakeApi.verifyOtp(formData.otp);
+      setView("FORGOT_NEW_PASS");
       setError("");
+      setErrorTarget("");
     } catch (err: any) {
       setError("Invalid OTP. Try 123456");
+      setErrorTarget("otp");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 3. Forgot Password: Set New Password
   const handlePassReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
+    
+    // Validation
+    if (!isPasswordValid) {
+      setError("Please meet all password requirements.");
+      setErrorTarget("password");
       return;
     }
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
+      setErrorTarget("confirmPassword");
+      return;
+    }
+
     setIsLoading(true);
     try {
       await fakeApi.resetPassword(formData);
       alert("Password reset successfully. Please login.");
       setView("LOGIN");
       setError("");
-      setFormData(prev => ({ ...prev, password: "", confirmPassword: "", otp: "" }));
+      setErrorTarget("");
+      setFormData((prev) => ({
+        ...prev,
+        password: "",
+        confirmPassword: "",
+        otp: "",
+      }));
     } catch (err: any) {
       setError(err.message);
+      setErrorTarget("general");
     } finally {
       setIsLoading(false);
     }
   };
 
   // --- UI Helpers ---
-  
-  // Helper to generate dynamic titles
+
   const getTitle = () => {
     switch (view) {
       case "LOGIN": return "Welcome Back";
@@ -167,17 +273,31 @@ export default function AuthPage() {
     }
   };
 
+  const PasswordRequirements = () => (
+    <div className="grid grid-cols-2 gap-2 mb-4">
+      {passwordCriteria.map((item, index) => (
+        <div 
+          key={index} 
+          className={`text-xs flex items-center gap-1.5 transition-colors duration-200 ${
+            item.valid ? "text-green-600 font-medium" : "text-slate-400"
+          }`}
+        >
+          {item.valid ? <Check size={12} strokeWidth={3} /> : <div className="w-3 h-3 rounded-full border border-slate-300" />}
+          {item.label}
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden font-sans">
-      {/* Background Decor - Cloud Vibe */}
+      {/* Background Decor */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
         <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-blue-100 rounded-full blur-3xl opacity-60"></div>
         <div className="absolute top-[20%] -right-[10%] w-[40%] h-[60%] bg-indigo-100 rounded-full blur-3xl opacity-60"></div>
       </div>
 
       <div className="w-full max-w-md bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 p-8 z-10 relative transition-all duration-300">
-        
-        {/* Header Section */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600 text-white mb-4 shadow-lg shadow-blue-500/30">
             <Cloud size={24} />
@@ -201,6 +321,7 @@ export default function AuthPage() {
               icon={<Mail size={18} />}
               value={formData.email}
               onChange={handleChange}
+              error={errorTarget === "email" ? error : ""}
               required
             />
             <Input
@@ -211,14 +332,16 @@ export default function AuthPage() {
               icon={<Lock size={18} />}
               value={formData.password}
               onChange={handleChange}
+              // For login, we usually show error on password or a general banner
+              error={errorTarget === "password" ? error : ""}
               required
             />
-            
+
             {showForgotLink && (
               <div className="flex justify-end mb-4">
                 <button
                   type="button"
-                  onClick={() => { setView("FORGOT_REQUEST"); setError(""); }}
+                  onClick={() => { setView("FORGOT_REQUEST"); setError(""); setErrorTarget(""); }}
                   className="text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer transition-colors"
                 >
                   Forgot your password?
@@ -226,7 +349,12 @@ export default function AuthPage() {
               </div>
             )}
 
-            {error && <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2 border border-red-100"><ShieldCheck size={16}/> {error}</div>}
+            {/* General Error Banner (Only for login or system errors) */}
+            {errorTarget === "general" && (
+              <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2 border border-red-100">
+                <ShieldCheck size={16} /> {error}
+              </div>
+            )}
 
             <Button isLoading={isLoading}>Sign In</Button>
 
@@ -235,7 +363,13 @@ export default function AuthPage() {
                 Don't have an account?{" "}
                 <button
                   type="button"
-                  onClick={() => { setView("REGISTER"); setError(""); setShowForgotLink(false); }}
+                  onClick={() => {
+                    setView("REGISTER");
+                    setError("");
+                    setErrorTarget("");
+                    setShowForgotLink(false);
+                    setFormData({ firstName: "", lastName: "", email: "", password: "", confirmPassword: "", otp: "" });
+                  }}
                   className="text-blue-600 font-semibold hover:underline cursor-pointer"
                 >
                   Register now
@@ -274,6 +408,8 @@ export default function AuthPage() {
               icon={<Mail size={18} />}
               value={formData.email}
               onChange={handleChange}
+              // FIXED: Error now shows here if Email is registered
+              error={errorTarget === "email" ? error : ""}
               required
             />
             <Input
@@ -284,8 +420,13 @@ export default function AuthPage() {
               icon={<Lock size={18} />}
               value={formData.password}
               onChange={handleChange}
+              // FIXED: Error shows here if strength is low
+              error={errorTarget === "password" ? error : ""}
               required
             />
+            
+            <PasswordRequirements />
+
             <Input
               label="Verify Password"
               type="password"
@@ -294,9 +435,14 @@ export default function AuthPage() {
               icon={<Lock size={18} />}
               value={formData.confirmPassword}
               onChange={handleChange}
-              error={error}
+              // FIXED: Error shows here ONLY for mismatch
+              error={errorTarget === "confirmPassword" ? error : ""}
               required
             />
+
+            {errorTarget === "general" && (
+              <div className="mb-4 text-red-500 text-sm text-center">{error}</div>
+            )}
 
             <Button isLoading={isLoading}>
               Create Account <ArrowRight size={16} />
@@ -307,7 +453,12 @@ export default function AuthPage() {
                 Already have an account?{" "}
                 <button
                   type="button"
-                  onClick={() => { setView("LOGIN"); setError(""); }}
+                  onClick={() => {
+                    setView("LOGIN");
+                    setError("");
+                    setErrorTarget("");
+                    setFormData({ firstName: "", lastName: "", email: "", password: "", confirmPassword: "", otp: "" });
+                  }}
                   className="text-blue-600 font-semibold hover:underline cursor-pointer"
                 >
                   Sign in
@@ -317,34 +468,34 @@ export default function AuthPage() {
           </form>
         )}
 
-        {/* --- OTP VERIFICATION (REGISTRATION) --- */}
+        {/* --- OTP VERIFY --- */}
         {view === "OTP_VERIFY" && (
           <form onSubmit={handleRegisterOtpVerify} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-             <div className="mb-6">
-               <Input 
-                 label="Registration OTP"
-                 name="otp"
-                 placeholder="123456"
-                 maxLength={6}
-                 className="text-center text-2xl tracking-[0.5em] font-bold text-slate-700"
-                 value={formData.otp}
-                 onChange={handleChange}
-                 required
-               />
-             </div>
-             {error && <p className="text-red-500 text-sm mb-4 text-center bg-red-50 p-2 rounded">{error}</p>}
-             <Button isLoading={isLoading}>Verify Email</Button>
-             <button
-                type="button"
-                onClick={() => setView("REGISTER")}
-                className="w-full mt-4 text-sm text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
-             >
-                Back to Register
-             </button>
+            <div className="mb-6">
+              <Input
+                label="Registration OTP"
+                name="otp"
+                placeholder="123456"
+                maxLength={6}
+                className="text-center text-2xl tracking-[0.5em] font-bold text-slate-700"
+                value={formData.otp}
+                onChange={handleChange}
+                error={errorTarget === "otp" ? error : ""}
+                required
+              />
+            </div>
+            <Button isLoading={isLoading}>Verify Email</Button>
+            <button
+              type="button"
+              onClick={() => setView("REGISTER")}
+              className="w-full mt-4 text-sm text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
+            >
+              Back to Register
+            </button>
           </form>
         )}
 
-        {/* --- FORGOT PASSWORD STEP 1: REQUEST --- */}
+        {/* --- FORGOT PASSWORD REQUEST --- */}
         {view === "FORGOT_REQUEST" && (
           <form onSubmit={handleForgotRequest} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <Input
@@ -355,54 +506,55 @@ export default function AuthPage() {
               icon={<Mail size={18} />}
               value={formData.email}
               onChange={handleChange}
+              error={errorTarget === "email" ? error : ""}
               required
             />
-            {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+            {errorTarget === "general" && <p className="text-red-500 text-sm mb-4">{error}</p>}
             <Button isLoading={isLoading}>Send Recovery Code</Button>
             <button
-                type="button"
-                onClick={() => setView("LOGIN")}
-                className="w-full mt-4 text-sm text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
-             >
-                Back to Login
-             </button>
+              type="button"
+              onClick={() => setView("LOGIN")}
+              className="w-full mt-4 text-sm text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
+            >
+              Back to Login
+            </button>
           </form>
         )}
 
-        {/* --- FORGOT PASSWORD STEP 2: VERIFY OTP --- */}
+        {/* --- FORGOT OTP --- */}
         {view === "FORGOT_OTP" && (
           <form onSubmit={handleForgotOtpVerify} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="mb-2 text-center">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100 text-green-600 mb-2">
                 <Mail size={20} />
               </div>
-              <p className="text-sm text-slate-500 mb-6">Code sent to <span className="font-medium text-slate-700">{formData.email}</span></p>
+              <p className="text-sm text-slate-500 mb-6">
+                Code sent to <span className="font-medium text-slate-700">{formData.email}</span>
+              </p>
             </div>
-
-            <Input 
-                 label="Recovery Code"
-                 name="otp"
-                 placeholder="123456"
-                 maxLength={6}
-                 className="text-center text-2xl tracking-[0.5em] font-bold text-slate-700"
-                 value={formData.otp}
-                 onChange={handleChange}
-                 required
+            <Input
+              label="Recovery Code"
+              name="otp"
+              placeholder="123456"
+              maxLength={6}
+              className="text-center text-2xl tracking-[0.5em] font-bold text-slate-700"
+              value={formData.otp}
+              onChange={handleChange}
+              error={errorTarget === "otp" ? error : ""}
+              required
             />
-            {error && <p className="text-red-500 text-sm mb-4 text-center bg-red-50 p-2 rounded">{error}</p>}
             <Button isLoading={isLoading}>Verify Code</Button>
-            
             <button
-                type="button"
-                onClick={() => setView("FORGOT_REQUEST")}
-                className="w-full mt-4 text-sm text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
-             >
-                Change Email
-             </button>
+              type="button"
+              onClick={() => setView("FORGOT_REQUEST")}
+              className="w-full mt-4 text-sm text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
+            >
+              Change Email
+            </button>
           </form>
         )}
 
-        {/* --- FORGOT PASSWORD STEP 3: NEW PASSWORD --- */}
+        {/* --- FORGOT NEW PASS --- */}
         {view === "FORGOT_NEW_PASS" && (
           <form onSubmit={handlePassReset} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="mb-4 text-center">
@@ -420,8 +572,13 @@ export default function AuthPage() {
               icon={<Lock size={18} />}
               value={formData.password}
               onChange={handleChange}
+              error={errorTarget === "password" ? error : ""}
               required
             />
+
+            {/* Password Strength Indicator */}
+            <PasswordRequirements />
+
             <Input
               label="Verify New Password"
               type="password"
@@ -430,13 +587,13 @@ export default function AuthPage() {
               icon={<Lock size={18} />}
               value={formData.confirmPassword}
               onChange={handleChange}
+              error={errorTarget === "confirmPassword" ? error : ""}
               required
             />
-            {error && <p className="text-red-500 text-sm mb-4 bg-red-50 p-2 rounded">{error}</p>}
+            {errorTarget === "general" && <p className="text-red-500 text-sm mb-4 bg-red-50 p-2 rounded">{error}</p>}
             <Button isLoading={isLoading}>Reset Password</Button>
           </form>
         )}
-
       </div>
     </div>
   );
