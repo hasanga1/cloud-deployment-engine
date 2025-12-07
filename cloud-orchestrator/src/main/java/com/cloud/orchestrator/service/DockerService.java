@@ -9,6 +9,7 @@ import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.PortBinding;
 import com.github.dockerjava.api.model.Ports;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
@@ -18,8 +19,10 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -38,7 +41,7 @@ public class DockerService {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    public String deployProject(String deploymentId, String repoUrl, String branch, String buildPath, int internalPort, String subdomain, String commitSha) throws Exception {
+    public String deployProject(String deploymentId, String repoUrl, String branch, String buildPath, int internalPort, String subdomain, String commitSha, Map<String, String> envVars, String gitToken) throws Exception {
     
         // 1. USE DEPLOYMENT ID FOR EVERYTHING (Consistency!)
         // Instead of a random UUID, we use the ID from the database.
@@ -50,7 +53,7 @@ public class DockerService {
         try {
             // --- CLONE ---
             kafkaTemplate.send("deployment-logs", "⬇️ Cloning repository...");
-            File repoRoot = cloneRepository(repoUrl, branch, commitSha);
+            File repoRoot = cloneRepository(repoUrl, branch, commitSha, gitToken);
             
             // --- PREPARE BUILD ---
             File buildDir = new File(repoRoot, buildPath); 
@@ -84,6 +87,11 @@ public class DockerService {
             System.out.println("🏷️ Traefik Label: " + hostRule);
             kafkaTemplate.send("deployment-logs", "⚡ Starting container with Traefik Proxy...");
 
+            List<String> envList = new ArrayList<>();
+            for (Map.Entry<String, String> entry : envVars.entrySet()) {
+                envList.add(entry.getKey() + "=" + entry.getValue());
+            }
+
             dockerClient.createContainerCmd(imageId)
                     .withName(appName) // Name the container app-{deploymentId}
                     .withHostConfig(HostConfig.newHostConfig()
@@ -99,12 +107,13 @@ public class DockerService {
                         "traefik.http.routers." + subdomain + ".entrypoints", "web",
                         "traefik.http.services." + subdomain + ".loadbalancer.server.port", String.valueOf(internalPort)
                     ))
+                    .withEnv(envList)
                     .exec();
 
             dockerClient.startContainerCmd(appName).exec();
 
-            // ✅ SUCCESS: Send the Magic URL
-            sendUpdate(deploymentId, "SUCCESS");
+            // ✅ RUNNING: Send the Magic URL
+            sendUpdate(deploymentId, "RUNNING");
             kafkaTemplate.send("deployment-logs", "✅ Deployment Successful! Access App: " + subdomainUrl);
 
             return subdomainUrl;
@@ -118,13 +127,22 @@ public class DockerService {
 
     // --- Helper Methods ---
 
-    private File cloneRepository(String repoUrl, String branch, String commitSha) throws Exception {
+    private File cloneRepository(String repoUrl, String branch, String commitSha, String gitToken) throws Exception {
         Path tempDir = Files.createTempDirectory("cloud-build-");
-        Git git = Git.cloneRepository()
+        var cloneCommand = Git.cloneRepository()
                 .setURI(repoUrl)
                 .setDirectory(tempDir.toFile())
-                .setBranch(branch)
-                .call();
+                .setBranch(branch);
+        
+        if (gitToken != null && !gitToken.isEmpty()) {
+            System.out.println("🔐 Using provided Git Token for authentication");
+            // GitHub accepts ANY string as username if the password is a PAT
+            cloneCommand.setCredentialsProvider(
+                new UsernamePasswordCredentialsProvider("oauth2", gitToken)
+            );
+        }
+
+        Git git = cloneCommand.call();
 
         if (commitSha != null && !commitSha.isEmpty()) {
             System.out.println("🔀 Checking out commit: " + commitSha);

@@ -22,4 +22,18 @@ public class Project {
     private String buildPath = "."; // Default to root
     private int port = 8080;        // Default port
     private Long userId;
+
+    @Column(columnDefinition = "TEXT") // Allow large strings
+    private String envs; // Stores ENCRYPTED JSON string
+    
+    public String getEnvs() {
+        return envs;
+    }
+
+    @Column(columnDefinition = "TEXT") 
+    private String gitToken;
+
+    public void setEnvs(String envs) {
+        this.envs = envs;
+    }
 }

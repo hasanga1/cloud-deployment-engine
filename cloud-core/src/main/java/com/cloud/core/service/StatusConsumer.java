@@ -24,13 +24,15 @@ public class StatusConsumer {
         try {
             Map<String, String> update = objectMapper.readValue(message, Map.class);
             String id = update.get("deploymentId");
-            String status = update.get("status");
-
-            System.out.println("🔄 Status Update: " + id + " -> " + status);
+            String status = update.get("status"); // "RUNNING" or "STOPPED"
 
             Deployment deployment = deploymentRepository.findById(id).orElseThrow();
+            
+            // This automatically handles the new Enums
             deployment.setStatus(Deployment.DeploymentStatus.valueOf(status));
+            
             deploymentRepository.save(deployment);
+            System.out.println("🔄 DB Updated: " + id + " -> " + status);
 
         } catch (Exception e) {
             e.printStackTrace();
