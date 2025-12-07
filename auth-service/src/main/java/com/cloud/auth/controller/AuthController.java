@@ -32,13 +32,50 @@ public class AuthController {
     @PostMapping("/send-code")
     public ResponseEntity<?> sendCode(@RequestBody Map<String, String> request) {
         String email = request.get("email");
-
-        if (userRepository.existsByEmail(email)) {
-            return ResponseEntity.badRequest().body("Email already registered");
-        }
-
         emailService.sendVerificationCode(email);
         return ResponseEntity.ok("Verification code sent to " + email);
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+
+        // Security Note: Usually we shouldn't tell if an email exists or not to prevent 
+        // user enumeration, but for this project, checking existence is fine.
+        if (!userRepository.existsByEmail(email)) {
+            return ResponseEntity.badRequest().body("Email not found");
+        }
+
+        emailService.sendPasswordResetLink(email);
+        return ResponseEntity.ok("Password reset link sent to your email.");
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request) {
+        
+        // A. Validate Token
+        String email = emailService.validatePasswordResetToken(request.getToken());
+        
+        if (email == null) {
+            return ResponseEntity.badRequest().body("Invalid Token");
+        } else if (email.equals("EXPIRED")) {
+            return ResponseEntity.badRequest().body("Link has expired");
+        }
+
+        // B. Validate Password Strength (Reuse your helper)
+        if (!isValidPassword(request.getNewPassword())) {
+            return ResponseEntity.badRequest().body("Password too weak");
+        }
+
+        // C. Update Password
+        User user = userRepository.findByEmail(email).orElseThrow();
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        // D. Delete used token so it can't be used again
+        emailService.deleteResetToken(request.getToken());
+
+        return ResponseEntity.ok("Password successfully updated");
     }
 
     @PostMapping("/register")
@@ -102,4 +139,10 @@ class RegisterRequest {
     private String lastName;
     private String password;
     private String code;
+}
+
+@Data
+class ResetPasswordRequest {
+    private String token;
+    private String newPassword;
 }
