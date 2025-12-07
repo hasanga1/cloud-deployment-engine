@@ -1,13 +1,17 @@
 package com.cloud.core.controller;
 
+import com.cloud.core.entity.AppEnvironment;
 import com.cloud.core.entity.Deployment;
 import com.cloud.core.entity.Project;
+import com.cloud.core.entity.ProjectEnvConfig;
 import com.cloud.core.repository.ProjectRepository;
 import com.cloud.core.service.DeploymentService;
 import com.cloud.core.service.GithubService;
 import com.cloud.core.util.EncryptionUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.cloud.core.repository.DeploymentRepository;
+import com.cloud.core.repository.ProjectEnvConfigRepository;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,13 +32,16 @@ public class ProjectController {
     private final GithubService githubService;
     private final DeploymentRepository deploymentRepository;
     private final EncryptionUtil encryptionUtil;
+    private final ProjectEnvConfigRepository envConfigRepository;
 
-    public ProjectController(ProjectRepository projectRepository, DeploymentService deploymentService, GithubService githubService, DeploymentRepository deploymentRepository, EncryptionUtil encryptionUtil) {
+
+    public ProjectController(ProjectRepository projectRepository, DeploymentService deploymentService, GithubService githubService, DeploymentRepository deploymentRepository, EncryptionUtil encryptionUtil, ProjectEnvConfigRepository envConfigRepository) {
         this.projectRepository = projectRepository;
         this.deploymentService = deploymentService;
         this.githubService = githubService;
         this.deploymentRepository = deploymentRepository;
         this.encryptionUtil = encryptionUtil;
+        this.envConfigRepository = envConfigRepository;
     }
 
     // --- 🔒 SECURITY HELPER (The Reuse Logic) ---
@@ -88,11 +95,11 @@ public class ProjectController {
 
     // 2. Trigger a Deployment for a Project
     @PostMapping("/{projectId}/deploy")
-    public Deployment deployProject(@PathVariable Long projectId, @RequestBody(required = false) Map<String, String> payload) {
+    public Deployment deployProject(@PathVariable Long projectId, @RequestParam(defaultValue = "PROD") AppEnvironment env, @RequestBody(required = false) Map<String, String> payload) {
         // If user sends specific commit, use it. Otherwise null (Orchestrator will pick latest).
         Project project = getAuthorizedProject(projectId);
         String commitSha = (payload != null) ? payload.get("commitSha") : null;
-        return deploymentService.triggerDeployment(project.getId(), commitSha);
+        return deploymentService.triggerDeployment(project.getId(), commitSha, env);
     }
 
     @GetMapping
@@ -123,7 +130,7 @@ public class ProjectController {
     }
 
     @PostMapping("/{projectId}/envs")
-    public ResponseEntity<?> updateEnvs(@PathVariable Long projectId, @RequestBody Map<String, String> envs) {
+    public ResponseEntity<?> updateEnvs(@PathVariable Long projectId, @RequestParam AppEnvironment env, @RequestBody Map<String, String> envs) {
         Project project = getAuthorizedProject(projectId);
 
         System.out.println("Updating envs for project " + projectId + ": " + envs);
@@ -131,17 +138,19 @@ public class ProjectController {
         // 1. Convert Map to JSON String
         try {
             String jsonString = new ObjectMapper().writeValueAsString(envs);
-
-            System.out.println("JSON String: " + jsonString);
             
             // 2. Encrypt
             String encrypted = encryptionUtil.encrypt(jsonString);
 
-            System.out.println("Encrypted Envs: " + encrypted);
+            ProjectEnvConfig config = envConfigRepository.findByProjectIdAndEnvironment(projectId, env)
+                    .orElse(new ProjectEnvConfig());
+
+            config.setProject(project);
+            config.setEnvironment(env);
+            config.setEncryptedEnvs(encrypted);
             
             // 3. Save
-            project.setEnvs(encrypted);
-            projectRepository.save(project);
+            envConfigRepository.save(config);
             
             return ResponseEntity.ok("Environment variables updated");
         } catch (Exception e) {
@@ -150,22 +159,21 @@ public class ProjectController {
     }
 
     @GetMapping("/{projectId}/envs")
-    public ResponseEntity<?> getEnvs(@PathVariable Long projectId) {
-        Project project = getAuthorizedProject(projectId);
-        
-        if (project.getEnvs() == null || project.getEnvs().isEmpty()) {
+    public ResponseEntity<?> getEnvs(@PathVariable Long projectId, @RequestParam AppEnvironment env) {
+        getAuthorizedProject(projectId); // Security Check
+
+        ProjectEnvConfig config = envConfigRepository.findByProjectIdAndEnvironment(projectId, env)
+                .orElse(null);
+
+        if (config == null || config.getEncryptedEnvs() == null) {
             return ResponseEntity.ok(Collections.emptyMap());
         }
-
         try {
-            // 1. Decrypt
-            String decrypted = encryptionUtil.decrypt(project.getEnvs());
-            
-            // 2. Convert back to Map
-            Map<String, String> envMap = new ObjectMapper().readValue(decrypted, new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {});
+            String decrypted = encryptionUtil.decrypt(config.getEncryptedEnvs());
+            Map<String, String> envMap = new ObjectMapper().readValue(decrypted, new TypeReference<Map<String, String>>() {});
             return ResponseEntity.ok(envMap);
         } catch (Exception e) {
-             return ResponseEntity.internalServerError().body("Failed to decrypt envs");
+            return ResponseEntity.internalServerError().body("Failed to decrypt envs");
         }
     }
 }

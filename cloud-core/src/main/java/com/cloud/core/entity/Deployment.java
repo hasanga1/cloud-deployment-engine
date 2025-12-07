@@ -24,6 +24,9 @@ public class Deployment {
 
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    @Enumerated(EnumType.STRING)
+    private AppEnvironment environment;
+
     public enum DeploymentStatus {
         QUEUED,
         IN_PROGRESS,
