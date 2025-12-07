@@ -34,6 +34,13 @@ public class AuthController {
         return ResponseEntity.ok("User registered");
     }
 
+    @PostMapping("/check-email")
+    public ResponseEntity<?> checkEmail(@RequestBody Map<String, String> emailRequest) {
+        String email = emailRequest.get("email");
+        boolean exists = userRepository.existsByEmail(email);
+        return ResponseEntity.ok(Map.of("exists", exists));
+    }
+
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody User loginRequest) {
         User user = userRepository.findByEmail(loginRequest.getEmail())
