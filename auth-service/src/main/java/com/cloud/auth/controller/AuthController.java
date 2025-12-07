@@ -27,6 +27,8 @@ public class AuthController {
         if (userRepository.existsByEmail(user.getEmail())) {
             return ResponseEntity.badRequest().body("Email taken");
         }
+        user.setFirstName(user.getFirstName());
+        user.setLastName(user.getLastName());
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         userRepository.save(user);
         return ResponseEntity.ok("User registered");
