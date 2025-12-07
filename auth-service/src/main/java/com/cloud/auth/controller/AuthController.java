@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/auth")
@@ -26,6 +27,9 @@ public class AuthController {
     public ResponseEntity<?> register(@RequestBody User user) {
         if (userRepository.existsByEmail(user.getEmail())) {
             return ResponseEntity.badRequest().body("Email taken");
+        }
+        if (!isValidPassword(user.getPassword())) {
+            return ResponseEntity.badRequest().body("Password must have 8+ chars, 1 uppercase, 1 number, and 1 special symbol.");
         }
         user.setFirstName(user.getFirstName());
         user.setLastName(user.getLastName());
@@ -50,5 +54,18 @@ public class AuthController {
         }
         String token = jwtUtils.generateToken(user.getEmail(), user.getId());
         return ResponseEntity.ok(Map.of("token", token));
+    }
+
+    // --- Helper Method ---
+    private boolean isValidPassword(String password) {
+        if (password == null) return false;
+
+        // Java Regex requires double backslashes for escaping
+        boolean hasLength  = password.length() >= 8;
+        boolean hasUpper   = Pattern.compile("[A-Z]").matcher(password).find();
+        boolean hasNumber  = Pattern.compile("[0-9]").matcher(password).find();
+        boolean hasSpecial = Pattern.compile("[!@#$%^&*(),.?\":{}|<>]").matcher(password).find();
+
+        return hasLength && hasUpper && hasNumber && hasSpecial;
     }
 }
