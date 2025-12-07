@@ -3,6 +3,10 @@ package com.cloud.auth.controller;
 import com.cloud.auth.entity.User;
 import com.cloud.auth.repository.UserRepository;
 import com.cloud.auth.util.JwtUtils;
+
+import lombok.Data;
+
+import com.cloud.auth.service.EmailService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -16,24 +20,45 @@ public class AuthController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
+    private final EmailService emailService;
 
-    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtils jwtUtils) {
+    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtils jwtUtils, EmailService emailService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
+        this.emailService = emailService;
+    }
+
+    @PostMapping("/send-code")
+    public ResponseEntity<?> sendCode(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+
+        if (userRepository.existsByEmail(email)) {
+            return ResponseEntity.badRequest().body("Email already registered");
+        }
+
+        emailService.sendVerificationCode(email);
+        return ResponseEntity.ok("Verification code sent to " + email);
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody User user) {
-        if (userRepository.existsByEmail(user.getEmail())) {
+    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+        if (userRepository.existsByEmail(request.getEmail())) {
             return ResponseEntity.badRequest().body("Email taken");
         }
-        if (!isValidPassword(user.getPassword())) {
+
+        if (!emailService.verifyCode(request.getEmail(), request.getCode())) {
+            return ResponseEntity.badRequest().body("Invalid or Expired Verification Code");
+        }
+
+        if (!isValidPassword(request.getPassword())) {
             return ResponseEntity.badRequest().body("Password must have 8+ chars, 1 uppercase, 1 number, and 1 special symbol.");
         }
-        user.setFirstName(user.getFirstName());
-        user.setLastName(user.getLastName());
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        User user = new User();
+        user.setEmail(request.getEmail());
+        user.setFirstName(request.getFirstName());
+        user.setLastName(request.getLastName());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
         userRepository.save(user);
         return ResponseEntity.ok("User registered");
     }
@@ -68,4 +93,13 @@ public class AuthController {
 
         return hasLength && hasUpper && hasNumber && hasSpecial;
     }
+}
+
+@Data
+class RegisterRequest {
+    private String email;
+    private String firstName;
+    private String lastName;
+    private String password;
+    private String code;
 }
