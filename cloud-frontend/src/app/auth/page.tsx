@@ -10,11 +10,17 @@ import {
   ShieldCheck,
   CheckCircle2,
   Check,
+  Timer,
+  RefreshCw, // Added icon for resend
 } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { fakeApi } from "@/lib/fakeapi";
 import api from "@/lib/api";
+
+// --- Configuration ---
+// Reads from .env, defaults to 60 seconds if not set
+const OTP_DURATION = Number(process.env.NEXT_PUBLIC_OTP_DURATION) || 60;
 
 type AuthView =
   | "LOGIN"
@@ -28,12 +34,18 @@ export default function AuthPage() {
   const router = useRouter();
   const [view, setView] = useState<AuthView>("LOGIN");
   const [isLoading, setIsLoading] = useState(false);
-  
-  // State for Error Message AND Error Target (which field is wrong)
+
+  // State for Error Message AND Error Target
   const [error, setError] = useState("");
-  const [errorTarget, setErrorTarget] = useState<"email" | "password" | "confirmPassword" | "otp" | "general" | "">("");
-  
+  const [errorTarget, setErrorTarget] = useState<
+    "email" | "password" | "confirmPassword" | "otp" | "general" | ""
+  >("");
+
   const [showForgotLink, setShowForgotLink] = useState(false);
+
+  // --- Timer State ---
+  const [timer, setTimer] = useState(OTP_DURATION);
+  const [canResend, setCanResend] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -49,7 +61,11 @@ export default function AuthPage() {
     { label: "At least 8 characters", valid: false, regex: /.{8,}/ },
     { label: "Uppercase letter", valid: false, regex: /[A-Z]/ },
     { label: "Number", valid: false, regex: /[0-9]/ },
-    { label: "Special symbol (!@#$)", valid: false, regex: /[!@#$%^&*(),.?":{}|<>]/ },
+    {
+      label: "Special symbol (!@#$)",
+      valid: false,
+      regex: /[!@#$%^&*(),.?":{}|<>]/,
+    },
   ]);
 
   useEffect(() => {
@@ -58,7 +74,34 @@ export default function AuthPage() {
       valid: c.regex.test(formData.password),
     }));
     setPasswordCriteria(newCriteria);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.password]);
+
+  // --- Timer Logic ---
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    // Only run timer if we are in an OTP view
+    if (view === "OTP_VERIFY" || view === "FORGOT_OTP") {
+      if (timer > 0) {
+        interval = setInterval(() => {
+          setTimer((prev) => prev - 1);
+        }, 1000);
+      } else {
+        setCanResend(true);
+      }
+    }
+
+    return () => clearInterval(interval);
+  }, [timer, view]);
+
+  // Reset timer when switching views
+  useEffect(() => {
+    if (view === "OTP_VERIFY" || view === "FORGOT_OTP") {
+      setTimer(OTP_DURATION);
+      setCanResend(false);
+    }
+  }, [view]);
 
   const isPasswordValid = passwordCriteria.every((c) => c.valid);
 
@@ -66,11 +109,17 @@ export default function AuthPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-    // Clear errors when user types to improve UX
     if (error) {
       setError("");
       setErrorTarget("");
     }
+  };
+
+  // --- Format Time Helper ---
+  const formatTime = (time: number) => {
+    const minutes = Math.floor(time / OTP_DURATION);
+    const seconds = time % OTP_DURATION;
+    return `${minutes}:${seconds < 10 ? `0${seconds}` : seconds}`;
   };
 
   // --- Handlers ---
@@ -89,7 +138,7 @@ export default function AuthPage() {
       const status = err?.response?.status;
       if (status === 400) {
         setError("Invalid credentials");
-        setErrorTarget("general"); // Login errors are usually general security/privacy
+        setErrorTarget("general");
       } else {
         setError(err?.message || "Login failed");
         setErrorTarget("general");
@@ -102,39 +151,35 @@ export default function AuthPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // 1. Validation Checks
+
     if (!isPasswordValid) {
       setError("Please meet all password requirements.");
-      setErrorTarget("password"); // Target the Password field
+      setErrorTarget("password");
       return;
     }
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match");
-      setErrorTarget("confirmPassword"); // Target the Confirm field
+      setErrorTarget("confirmPassword");
       return;
     }
 
     setIsLoading(true);
     try {
-      // 2. Check if email already exists
       const emailCheckRes = await api.post("/auth/check-email", {
         email: formData.email,
       });
-      
+
       if (emailCheckRes.data.exists) {
         setError("Email is already registered");
-        setErrorTarget("email"); // Target the Email field specifically
+        setErrorTarget("email");
         setIsLoading(false);
         return;
       }
 
-      // 3. Send the OTP code HERE
       await api.post("/auth/send-code", {
-        email: formData.email
+        email: formData.email,
       });
 
-      // 4. Proceed if email is unique and code sent
       setView("OTP_VERIFY");
       setError("");
       setErrorTarget("");
@@ -150,7 +195,6 @@ export default function AuthPage() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      // If OTP is correct, register the user
       await api.post("/auth/register", {
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -173,6 +217,30 @@ export default function AuthPage() {
     } catch (err: any) {
       setError("Invalid OTP. Try 123456");
       setErrorTarget("otp");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!canResend) return;
+    setIsLoading(true);
+    try {
+      // Logic for resending OTP (Assuming same endpoint for simplicity, or use specific resend endpoint)
+      // Note: You might want to use fakeApi.requestPasswordReset logic if it's the forgot flow
+      if (view === "FORGOT_OTP") {
+        await fakeApi.requestPasswordReset(formData.email);
+      } else {
+        await api.post("/auth/send-code", { email: formData.email });
+      }
+
+      setTimer(OTP_DURATION);
+      setCanResend(false);
+      setError("");
+      alert("Code resent successfully!");
+    } catch (err: any) {
+      setError("Failed to resend code");
+      setErrorTarget("general");
     } finally {
       setIsLoading(false);
     }
@@ -213,8 +281,7 @@ export default function AuthPage() {
 
   const handlePassReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validation
+
     if (!isPasswordValid) {
       setError("Please meet all password requirements.");
       setErrorTarget("password");
@@ -251,38 +318,56 @@ export default function AuthPage() {
 
   const getTitle = () => {
     switch (view) {
-      case "LOGIN": return "Welcome Back";
-      case "REGISTER": return "Create Account";
-      case "OTP_VERIFY": return "Verify Registration";
-      case "FORGOT_REQUEST": return "Reset Password";
-      case "FORGOT_OTP": return "Enter Code";
-      case "FORGOT_NEW_PASS": return "New Password";
-      default: return "Authentication";
+      case "LOGIN":
+        return "Welcome Back";
+      case "REGISTER":
+        return "Create Account";
+      case "OTP_VERIFY":
+        return "Verify Registration";
+      case "FORGOT_REQUEST":
+        return "Reset Password";
+      case "FORGOT_OTP":
+        return "Enter Code";
+      case "FORGOT_NEW_PASS":
+        return "New Password";
+      default:
+        return "Authentication";
     }
   };
 
   const getSubtitle = () => {
     switch (view) {
-      case "LOGIN": return "Enter your credentials to access the cloud console.";
-      case "REGISTER": return "Get started with your cloud deployment journey.";
-      case "OTP_VERIFY": return "We sent a 6-digit code to your email.";
-      case "FORGOT_REQUEST": return "Enter your email to receive a recovery code.";
-      case "FORGOT_OTP": return "Check your email for the recovery code.";
-      case "FORGOT_NEW_PASS": return "Secure your account with a strong password.";
-      default: return "";
+      case "LOGIN":
+        return "Enter your credentials to access the cloud console.";
+      case "REGISTER":
+        return "Get started with your cloud deployment journey.";
+      case "OTP_VERIFY":
+        return "We sent a 6-digit code to your email.";
+      case "FORGOT_REQUEST":
+        return "Enter your email to receive a recovery code.";
+      case "FORGOT_OTP":
+        return "Check your email for the recovery code.";
+      case "FORGOT_NEW_PASS":
+        return "Secure your account with a strong password.";
+      default:
+        return "";
     }
   };
 
   const PasswordRequirements = () => (
     <div className="grid grid-cols-2 gap-2 mb-4">
       {passwordCriteria.map((item, index) => (
-        <div 
-          key={index} 
+        <div
+          key={index}
           className={`text-xs flex items-center gap-1.5 transition-colors duration-200 ${
             item.valid ? "text-green-600 font-medium" : "text-slate-400"
           }`}
         >
-          {item.valid ? <Check size={12} strokeWidth={3} /> : <div className="w-3 h-3 rounded-full border border-slate-300" />}
+          {item.valid ? (
+            <Check size={12} strokeWidth={3} />
+          ) : (
+            <div className="w-3 h-3 rounded-full border border-slate-300" />
+          )}
           {item.label}
         </div>
       ))}
@@ -312,7 +397,10 @@ export default function AuthPage() {
 
         {/* --- LOGIN FORM --- */}
         {view === "LOGIN" && (
-          <form onSubmit={handleLogin} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <form
+            onSubmit={handleLogin}
+            className="animate-in fade-in slide-in-from-bottom-4 duration-500"
+          >
             <Input
               label="Email Address"
               type="email"
@@ -332,7 +420,6 @@ export default function AuthPage() {
               icon={<Lock size={18} />}
               value={formData.password}
               onChange={handleChange}
-              // For login, we usually show error on password or a general banner
               error={errorTarget === "password" ? error : ""}
               required
             />
@@ -341,7 +428,11 @@ export default function AuthPage() {
               <div className="flex justify-end mb-4">
                 <button
                   type="button"
-                  onClick={() => { setView("FORGOT_REQUEST"); setError(""); setErrorTarget(""); }}
+                  onClick={() => {
+                    setView("FORGOT_REQUEST");
+                    setError("");
+                    setErrorTarget("");
+                  }}
                   className="text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer transition-colors"
                 >
                   Forgot your password?
@@ -349,7 +440,6 @@ export default function AuthPage() {
               </div>
             )}
 
-            {/* General Error Banner (Only for login or system errors) */}
             {errorTarget === "general" && (
               <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2 border border-red-100">
                 <ShieldCheck size={16} /> {error}
@@ -368,7 +458,14 @@ export default function AuthPage() {
                     setError("");
                     setErrorTarget("");
                     setShowForgotLink(false);
-                    setFormData({ firstName: "", lastName: "", email: "", password: "", confirmPassword: "", otp: "" });
+                    setFormData({
+                      firstName: "",
+                      lastName: "",
+                      email: "",
+                      password: "",
+                      confirmPassword: "",
+                      otp: "",
+                    });
                   }}
                   className="text-blue-600 font-semibold hover:underline cursor-pointer"
                 >
@@ -381,7 +478,10 @@ export default function AuthPage() {
 
         {/* --- REGISTER FORM --- */}
         {view === "REGISTER" && (
-          <form onSubmit={handleRegister} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <form
+            onSubmit={handleRegister}
+            className="animate-in fade-in slide-in-from-bottom-4 duration-500"
+          >
             <div className="flex gap-4">
               <Input
                 label="First Name"
@@ -408,7 +508,6 @@ export default function AuthPage() {
               icon={<Mail size={18} />}
               value={formData.email}
               onChange={handleChange}
-              // FIXED: Error now shows here if Email is registered
               error={errorTarget === "email" ? error : ""}
               required
             />
@@ -420,11 +519,10 @@ export default function AuthPage() {
               icon={<Lock size={18} />}
               value={formData.password}
               onChange={handleChange}
-              // FIXED: Error shows here if strength is low
               error={errorTarget === "password" ? error : ""}
               required
             />
-            
+
             <PasswordRequirements />
 
             <Input
@@ -435,13 +533,14 @@ export default function AuthPage() {
               icon={<Lock size={18} />}
               value={formData.confirmPassword}
               onChange={handleChange}
-              // FIXED: Error shows here ONLY for mismatch
               error={errorTarget === "confirmPassword" ? error : ""}
               required
             />
 
             {errorTarget === "general" && (
-              <div className="mb-4 text-red-500 text-sm text-center">{error}</div>
+              <div className="mb-4 text-red-500 text-sm text-center">
+                {error}
+              </div>
             )}
 
             <Button isLoading={isLoading}>
@@ -457,7 +556,14 @@ export default function AuthPage() {
                     setView("LOGIN");
                     setError("");
                     setErrorTarget("");
-                    setFormData({ firstName: "", lastName: "", email: "", password: "", confirmPassword: "", otp: "" });
+                    setFormData({
+                      firstName: "",
+                      lastName: "",
+                      email: "",
+                      password: "",
+                      confirmPassword: "",
+                      otp: "",
+                    });
                   }}
                   className="text-blue-600 font-semibold hover:underline cursor-pointer"
                 >
@@ -468,9 +574,12 @@ export default function AuthPage() {
           </form>
         )}
 
-        {/* --- OTP VERIFY --- */}
+        {/* --- OTP VERIFY (REGISTRATION) --- */}
         {view === "OTP_VERIFY" && (
-          <form onSubmit={handleRegisterOtpVerify} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <form
+            onSubmit={handleRegisterOtpVerify}
+            className="animate-in fade-in slide-in-from-bottom-4 duration-500"
+          >
             <div className="mb-6">
               <Input
                 label="Registration OTP"
@@ -483,7 +592,36 @@ export default function AuthPage() {
                 error={errorTarget === "otp" ? error : ""}
                 required
               />
+
+              {/* Timer and Resend Logic */}
+              <div className="flex items-center justify-between text-sm mt-2 px-1">
+                <div className="flex items-center gap-1.5 text-slate-500">
+                  <Timer size={14} />
+                  <span>{formatTime(timer)}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={!canResend}
+                  className={`flex items-center gap-1.5 font-medium transition-colors ${
+                    canResend
+                      ? "text-blue-600 hover:text-blue-700 cursor-pointer"
+                      : "text-slate-300 cursor-not-allowed"
+                  }`}
+                >
+                  <RefreshCw
+                    size={14}
+                    className={isLoading ? "animate-spin" : ""}
+                  />
+                  Resend Code
+                </button>
+              </div>
             </div>
+
+            {errorTarget === "general" && (
+              <p className="text-red-500 text-sm mb-4 text-center">{error}</p>
+            )}
+
             <Button isLoading={isLoading}>Verify Email</Button>
             <button
               type="button"
@@ -497,7 +635,10 @@ export default function AuthPage() {
 
         {/* --- FORGOT PASSWORD REQUEST --- */}
         {view === "FORGOT_REQUEST" && (
-          <form onSubmit={handleForgotRequest} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <form
+            onSubmit={handleForgotRequest}
+            className="animate-in fade-in slide-in-from-bottom-4 duration-500"
+          >
             <Input
               label="Enter your email"
               type="email"
@@ -509,7 +650,9 @@ export default function AuthPage() {
               error={errorTarget === "email" ? error : ""}
               required
             />
-            {errorTarget === "general" && <p className="text-red-500 text-sm mb-4">{error}</p>}
+            {errorTarget === "general" && (
+              <p className="text-red-500 text-sm mb-4">{error}</p>
+            )}
             <Button isLoading={isLoading}>Send Recovery Code</Button>
             <button
               type="button"
@@ -523,13 +666,19 @@ export default function AuthPage() {
 
         {/* --- FORGOT OTP --- */}
         {view === "FORGOT_OTP" && (
-          <form onSubmit={handleForgotOtpVerify} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <form
+            onSubmit={handleForgotOtpVerify}
+            className="animate-in fade-in slide-in-from-bottom-4 duration-500"
+          >
             <div className="mb-2 text-center">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100 text-green-600 mb-2">
                 <Mail size={20} />
               </div>
               <p className="text-sm text-slate-500 mb-6">
-                Code sent to <span className="font-medium text-slate-700">{formData.email}</span>
+                Code sent to{" "}
+                <span className="font-medium text-slate-700">
+                  {formData.email}
+                </span>
               </p>
             </div>
             <Input
@@ -543,6 +692,31 @@ export default function AuthPage() {
               error={errorTarget === "otp" ? error : ""}
               required
             />
+
+            {/* Timer and Resend Logic */}
+            <div className="flex items-center justify-between text-sm mt-2 mb-6 px-1">
+              <div className="flex items-center gap-1.5 text-slate-500">
+                <Timer size={14} />
+                <span>{formatTime(timer)}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                disabled={!canResend}
+                className={`flex items-center gap-1.5 font-medium transition-colors ${
+                  canResend
+                    ? "text-blue-600 hover:text-blue-700 cursor-pointer"
+                    : "text-slate-300 cursor-not-allowed"
+                }`}
+              >
+                <RefreshCw
+                  size={14}
+                  className={isLoading ? "animate-spin" : ""}
+                />
+                Resend Code
+              </button>
+            </div>
+
             <Button isLoading={isLoading}>Verify Code</Button>
             <button
               type="button"
@@ -556,7 +730,10 @@ export default function AuthPage() {
 
         {/* --- FORGOT NEW PASS --- */}
         {view === "FORGOT_NEW_PASS" && (
-          <form onSubmit={handlePassReset} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <form
+            onSubmit={handlePassReset}
+            className="animate-in fade-in slide-in-from-bottom-4 duration-500"
+          >
             <div className="mb-4 text-center">
               <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-green-100 text-green-600 mb-2">
                 <CheckCircle2 size={20} />
@@ -590,7 +767,11 @@ export default function AuthPage() {
               error={errorTarget === "confirmPassword" ? error : ""}
               required
             />
-            {errorTarget === "general" && <p className="text-red-500 text-sm mb-4 bg-red-50 p-2 rounded">{error}</p>}
+            {errorTarget === "general" && (
+              <p className="text-red-500 text-sm mb-4 bg-red-50 p-2 rounded">
+                {error}
+              </p>
+            )}
             <Button isLoading={isLoading}>Reset Password</Button>
           </form>
         )}
