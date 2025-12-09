@@ -170,4 +170,20 @@ public class ComponentController {
             return ResponseEntity.internalServerError().body("Failed to decrypt envs");
         }
     }
+
+    @GetMapping("/{componentId}/status")
+    public ResponseEntity<?> getComponentStatus(@PathVariable Long componentId) {
+        // 1. Fetch Component
+        Component component = componentRepository.findById(componentId)
+                .orElseThrow(() -> new RuntimeException("Component not found"));
+
+        // 2. Security Check (Traverse up to Organization)
+        // Check if current user is a member of the Org that owns this component
+        authHelper.checkAccess(component.getProject().getOrganization().getId());
+
+        // 3. Get Status
+        Map<String, Boolean> status = deploymentService.getComponentRunStatus(componentId);
+        
+        return ResponseEntity.ok(status);
+    }
 }

@@ -167,4 +167,22 @@ public class DeploymentService {
 
         return healthMap;
     }
+
+    public Map<String, Boolean> getComponentRunStatus(Long componentId) {
+        Map<String, Boolean> statusMap = new HashMap<>();
+
+        // Iterate through DEV, STG, PROD
+        for (AppEnvironment env : AppEnvironment.values()) {
+            Optional<Deployment> latestDeployment = deploymentRepository
+                    .findTopByComponentIdAndEnvironmentOrderByCreatedAtDesc(componentId, env);
+
+            // True ONLY if deployment exists AND is currently RUNNING
+            boolean isRunning = latestDeployment.isPresent() && 
+                                latestDeployment.get().getStatus() == Deployment.DeploymentStatus.RUNNING;
+
+            statusMap.put(env.name(), isRunning);
+        }
+
+        return statusMap;
+    }
 }
