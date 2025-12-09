@@ -30,4 +30,27 @@ public class JwtUtils {
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
+
+    public Long getUserIdFromToken(String token) {
+        String subject = io.jsonwebtoken.Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .getSubject(); // We stored ID as subject
+        
+        return Long.parseLong(subject);
+    }
+
+    public boolean validateToken(String token) {
+        try {
+            io.jsonwebtoken.Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
 }

@@ -1,13 +1,16 @@
 package com.cloud.auth.controller;
 
+import com.cloud.auth.dto.UserResponse;
 import com.cloud.auth.entity.User;
 import com.cloud.auth.repository.UserRepository;
 import com.cloud.auth.util.JwtUtils;
+import com.cloud.auth.dto.UserResponse;
 
 import lombok.Data;
 
 import com.cloud.auth.service.EmailService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
@@ -27,6 +30,36 @@ public class AuthController {
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
         this.emailService = emailService;
+    }
+
+    @GetMapping("/user")
+    public ResponseEntity<?> getUserDetails(@RequestHeader("Authorization") String token) {
+        try {
+            // 1. Clean the token
+            if (token.startsWith("Bearer ")) {
+                token = token.substring(7);
+            }
+
+            // 2. Validate Token
+            if (!jwtUtils.validateToken(token)) {
+                return ResponseEntity.status(401).body("Invalid or Expired Token");
+            }
+
+            // 3. Extract User ID
+            Long userId = jwtUtils.getUserIdFromToken(token);
+
+            // 4. Find User in DB
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            // 5. Convert to DTO (Excluding Password)
+            UserResponse response = new UserResponse(user.getId(), user.getEmail(), user.getFirstName(), user.getLastName());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body("Unauthorized");
+        }
     }
 
     @PostMapping("/send-code")
