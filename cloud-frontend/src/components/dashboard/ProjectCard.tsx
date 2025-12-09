@@ -101,9 +101,6 @@ export const ProjectCard = ({ project }: { project: IProject }) => {
               <Clock size={12} /> 
               {formatProjectDate(project.createdAt)}
             </span>
-            <span className="flex items-center gap-1">
-              <GitCommit size={12} /> main
-            </span>
           </div>
         </div>
       </div>

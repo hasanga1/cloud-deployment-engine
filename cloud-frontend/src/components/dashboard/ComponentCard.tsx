@@ -1,104 +1,120 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Box, GitBranch, Clock, MoreVertical, Loader2 } from "lucide-react";
+import { Layers, Clock, GitBranch, MoreVertical, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { IComponent } from "@/types";
-import { useRouter } from "next/navigation";
 
-// Interface for the new Status API response
-interface ComponentStatus {
-  DEV: boolean;
-  STG: boolean;
-  PROD: boolean;
-}
+// --- Time Helper (Same as ProjectCard) ---
+const formatDate = (dateString: string) => {
+  if (!dateString) return "Unknown date";
+  const date = new Date(dateString);
+  const now = new Date();
+  
+  const isToday = 
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear();
 
-// --- Sub-Component: Status Indicator ---
-const EnvStatus = ({ env, isRunning }: { env: string; isRunning?: boolean }) => {
-  // Determine color based on boolean status
-  // True = Green (Running), False = Red (Not Running/Stopped)
-  // We use specific colors for the dot and the outer ring
-  const color = isRunning ? "bg-green-500" : "bg-red-500";
-  const ring = isRunning ? "ring-green-100" : "ring-red-100";
+  if (isToday) {
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    if (diffInSeconds < 60) return "Just now";
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    return `${diffInHours}h ago`;
+  } else {
+    return date.toLocaleDateString('en-GB'); // DD/MM/YYYY
+  }
+};
 
+// --- Status Dot Component ---
+const StatusDot = ({ env, active }: { env: string; active: boolean }) => {
   return (
     <div className="flex flex-col items-center gap-1.5">
       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{env}</span>
-      <div className={`w-3 h-3 rounded-full ${color} ring-4 ${ring} transition-all`} />
+      {/* Filled Circle: Green if true, Red if false */}
+      <div 
+        className={`w-3 h-3 rounded-full transition-all duration-300 ${
+          active 
+            ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]" 
+            : "bg-red-400 opacity-40"
+        }`} 
+      />
     </div>
   );
 };
 
 export const ComponentCard = ({ component }: { component: IComponent }) => {
-  const [status, setStatus] = useState<ComponentStatus | null>(null);
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const [status, setStatus] = useState({ DEV: false, STG: false, PROD: false });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
-    
     const fetchStatus = async () => {
       try {
         const res = await api.get(`/api/components/${component.id}/status`);
         if (isMounted) setStatus(res.data);
       } catch (error) {
-        console.error("Failed to load component status");
-        // Default to all false on error
-        if (isMounted) setStatus({ DEV: false, STG: false, PROD: false });
+        // Keep default false on error
       } finally {
         if (isMounted) setLoading(false);
       }
     };
-
     fetchStatus();
-
     return () => { isMounted = false; };
   }, [component.id]);
 
   return (
     <div 
-    onClick={() => router.push(`/dashboard/projects/${component.id}/components/${component.id}`)}
-    className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 group hover:border-blue-300 transition-all cursor-pointer">
+      // Navigate to component details (placeholder route for now)
+      onClick={() => router.push(`/projects/${component.projectId}/components/${component.id}`)}
+      className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group hover:border-blue-300 transition-colors cursor-pointer"
+    >
       
       {/* Left: Component Info */}
       <div className="flex items-center gap-4">
-        <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
-          <Box size={20} />
+        <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0 border border-indigo-100">
+          <Layers size={22} />
         </div>
         <div>
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
-              {component.name}
-            </h3>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">
-              {component.subdomain}
-            </span>
-          </div>
-          <div className="flex items-center gap-4 text-xs text-slate-500 mt-1.5">
-            <span className="flex items-center gap-1">
-              <GitBranch size={12} /> {component.repoUrl.split('/').pop()}
+          <h3 className="text-base font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
+            {component.name}
+          </h3>
+          <div className="flex items-center gap-3 text-xs text-slate-500 mt-1.5">
+            <span className="flex items-center gap-1.5 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+              <Clock size={12} /> 
+              {formatDate(component.createdAt)}
             </span>
             <span className="flex items-center gap-1">
-              <Clock size={12} /> Port: {component.port}
+              <GitBranch size={12} /> {component.branch}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Right: Environment Status */}
+      {/* Right: Environment Status Dots */}
       <div className="flex items-center gap-6 self-end sm:self-auto">
         {loading ? (
-           // Simple loading spinner or skeleton
-           <Loader2 size={16} className="animate-spin text-slate-300" />
+           <div className="flex gap-4">
+             {[1,2,3].map(i => (
+                <div key={i} className="flex flex-col items-center gap-1">
+                    <div className="h-2 w-6 bg-slate-100 rounded"/> 
+                    <div className="w-3 h-3 bg-slate-100 rounded-full animate-pulse"/>
+                </div>
+             ))}
+           </div>
         ) : (
           <div className="flex gap-6">
-            <EnvStatus env="DEV" isRunning={status?.DEV} />
-            <EnvStatus env="STG" isRunning={status?.STG} />
-            <EnvStatus env="PROD" isRunning={status?.PROD} />
+            <StatusDot env="DEV" active={status.DEV} />
+            <StatusDot env="STG" active={status.STG} />
+            <StatusDot env="PROD" active={status.PROD} />
           </div>
         )}
-        
-        <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+
+        <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full ml-2">
           <MoreVertical size={18} />
         </button>
       </div>
