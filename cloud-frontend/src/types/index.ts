@@ -26,17 +26,15 @@ export interface IOrganization {
   name: string;
   slug: string;
   createdByUserId: number;
-  createdAt?: string;
+  createdAt: string;
 }
 
 export interface IProject {
   id: number;
   name: string;
   description?: string;
-  organization: IOrganization;
+  organization: IOrganization; // Backend returns full object based on Entity
   createdAt: string;
-  // Optional: Frontend specific fields for UI if backend doesn't send them yet
-  status?: "healthy" | "warning" | "failed"; 
 }
 
 export interface IComponent {
@@ -44,15 +42,8 @@ export interface IComponent {
   name: string;
   subdomain: string;
   repoUrl: string;
+  branch: string;
   port: number;
-  projectId: number;
-}
-
-export interface IDeployment {
-  id: string;
-  componentId: number;
-  status: DeploymentStatus;
-  environment: AppEnvironment;
-  commitSha: string;
+  projectId: number; // or project object depending on JSON serialization
   createdAt: string;
 }
