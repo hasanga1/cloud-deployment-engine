@@ -2,11 +2,13 @@ package com.cloud.core.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import java.time.LocalDateTime;
 
 @Entity
 @Data
-public class Project {
+@Table(uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"organization_id", "user_id"}) // User can join org only once
+})
+public class OrganizationMember {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -16,9 +18,8 @@ public class Project {
     private Organization organization;
 
     @Column(nullable = false)
-    private String name; // e.g., "OPD Claims App"
+    private Long userId; // From Auth Service
 
-    private String description;
-    
-    private LocalDateTime createdAt = LocalDateTime.now();
+    @Enumerated(EnumType.STRING)
+    private MemberRole role;
 }

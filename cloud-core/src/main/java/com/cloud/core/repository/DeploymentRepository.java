@@ -6,5 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface DeploymentRepository extends JpaRepository<Deployment, String> {
-    List<Deployment> findAllByProjectIdOrderByCreatedAtDesc(Long projectId);
+    List<Deployment> findAllByComponentIdOrderByCreatedAtDesc(Long componentId);
 }

@@ -13,8 +13,8 @@ public class Deployment {
     private String id; // UUIDs are better for deployment IDs
 
     @ManyToOne
-    @JoinColumn(name = "project_id")
-    private Project project;
+    @JoinColumn(name = "component_id")
+    private Component component;
 
     private String commitSha;
     private String commitMessage;

@@ -6,19 +6,18 @@ import java.time.LocalDateTime;
 
 @Entity
 @Data
-public class Project {
+public class Organization {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "organization_id", nullable = false)
-    private Organization organization;
-
     @Column(nullable = false)
-    private String name; // e.g., "OPD Claims App"
+    private String name; // e.g., "WSO2 Inc"
 
-    private String description;
-    
+    @Column(unique = true, nullable = false)
+    private String slug; // e.g., "wso2" (Used for URLs)
+
+    private Long createdByUserId; // The user who created this org
+
     private LocalDateTime createdAt = LocalDateTime.now();
 }

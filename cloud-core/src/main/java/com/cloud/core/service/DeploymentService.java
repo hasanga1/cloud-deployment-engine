@@ -2,12 +2,14 @@ package com.cloud.core.service;
 
 import com.cloud.core.entity.AppEnvironment;
 import com.cloud.core.entity.Deployment;
+import com.cloud.core.entity.Organization;
 import com.cloud.core.entity.Project;
-import com.cloud.core.entity.ProjectEnvConfig;
+import com.cloud.core.entity.Component;
+import com.cloud.core.entity.ComponentEnvConfig;
 import com.cloud.core.repository.DeploymentRepository;
 import com.cloud.core.repository.ProjectRepository;
 import com.cloud.core.util.EncryptionUtil;
-import com.cloud.core.repository.ProjectEnvConfigRepository;
+import com.cloud.core.repository.ComponentEnvConfigRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
@@ -24,13 +26,13 @@ public class DeploymentService {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
     private final EncryptionUtil encryptionUtil;
-    private final ProjectEnvConfigRepository envConfigRepository;
+    private final ComponentEnvConfigRepository envConfigRepository;
 
     public DeploymentService(ProjectRepository projectRepository, 
                              DeploymentRepository deploymentRepository,
                              KafkaTemplate<String, Object> kafkaTemplate,
                              EncryptionUtil encryptionUtil,
-                             ProjectEnvConfigRepository envConfigRepository) {
+                             ComponentEnvConfigRepository envConfigRepository) {
         this.projectRepository = projectRepository;
         this.deploymentRepository = deploymentRepository;
         this.kafkaTemplate = kafkaTemplate;
@@ -39,43 +41,37 @@ public class DeploymentService {
         this.envConfigRepository = envConfigRepository;
     }
 
-    public Deployment triggerDeployment(Long projectId, String commitSha, AppEnvironment env) {
+    public Deployment triggerDeployment(Component component, String commitSha, AppEnvironment env) {
         // 1. Fetch Project
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new RuntimeException("Project not found"));
+        Project project = component.getProject();
+        Organization org = project.getOrganization();
 
         String gitToken = null;
-        if (project.getGitToken() != null && !project.getGitToken().isEmpty()) {
+        if (component.getGitToken() != null && !component.getGitToken().isEmpty()) {
             try {
-                gitToken = encryptionUtil.decrypt(project.getGitToken());
+                gitToken = encryptionUtil.decrypt(component.getGitToken());
             } catch (Exception e) {
                 System.err.println("Failed to decrypt git token");
             }
         }
 
         Map<String, String> envVars = new HashMap<>();
-        Optional<ProjectEnvConfig> config = envConfigRepository.findByProjectIdAndEnvironment(projectId, env);
+        Optional<ComponentEnvConfig> config = envConfigRepository.findByComponentIdAndEnvironment(component.getId(), env);
 
-        if (config.isPresent()) {
-            try {
-                String decrypted = encryptionUtil.decrypt(config.get().getEncryptedEnvs());
-                envVars = new ObjectMapper().readValue(decrypted, Map.class);
-            } catch (Exception e) {
-                System.err.println("Failed to decrypt vars");
-            }
-        }
+        String fullSubdomain = String.format("%s-%s-%s", 
+            org.getSlug(), 
+            project.getName().toLowerCase().replaceAll(" ", "-"), // Sanitize
+            component.getSubdomain()
+        );
 
-        // 2. Generate Subdomain based on Environment logic
-        String finalSubdomain = project.getSubdomain();
-        if (env == AppEnvironment.DEV) {
-            finalSubdomain += "-dev";
-        } else if (env == AppEnvironment.STG) {
-            finalSubdomain += "-stg";
+        if (env != AppEnvironment.PROD) {
+            fullSubdomain += "-" + env.name().toLowerCase();
         }
 
         // 2. Create Deployment Record (Status: QUEUED)
         Deployment deployment = new Deployment();
-        deployment.setProject(project);
+        deployment.setComponent(component);
+        deployment.setEnvironment(env);
         deployment.setStatus(Deployment.DeploymentStatus.QUEUED);
         deployment.setCommitSha(commitSha);
         deploymentRepository.save(deployment);
@@ -83,11 +79,11 @@ public class DeploymentService {
         // 3. Prepare Payload for Orchestrator
         Map<String, Object> message = new HashMap<>();
         message.put("deploymentId", deployment.getId());
-        message.put("repoUrl", project.getRepoUrl());
-        message.put("branch", project.getBranch());
-        message.put("buildPath", project.getBuildPath());
-        message.put("port", project.getPort());
-        message.put("subdomain", finalSubdomain);
+        message.put("repoUrl", component.getRepoUrl());
+        message.put("branch", component.getBranch());
+        message.put("buildPath", component.getBuildPath());
+        message.put("port", component.getPort());
+        message.put("subdomain", fullSubdomain);
         message.put("commitSha", commitSha);
         message.put("env", envVars);
         message.put("gitToken", gitToken);
