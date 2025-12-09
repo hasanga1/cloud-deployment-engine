@@ -7,7 +7,7 @@ import com.cloud.core.entity.Project;
 import com.cloud.core.entity.Component;
 import com.cloud.core.entity.ComponentEnvConfig;
 import com.cloud.core.repository.DeploymentRepository;
-import com.cloud.core.repository.ProjectRepository;
+import com.cloud.core.repository.ComponentRepository;
 import com.cloud.core.util.EncryptionUtil;
 import com.cloud.core.repository.ComponentEnvConfigRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,28 +17,29 @@ import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.List;
 
 @Service
 public class DeploymentService {
 
-    private final ProjectRepository projectRepository;
     private final DeploymentRepository deploymentRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
     private final EncryptionUtil encryptionUtil;
     private final ComponentEnvConfigRepository envConfigRepository;
+    private final ComponentRepository componentRepository;
 
-    public DeploymentService(ProjectRepository projectRepository, 
-                             DeploymentRepository deploymentRepository,
+    public DeploymentService(DeploymentRepository deploymentRepository,
                              KafkaTemplate<String, Object> kafkaTemplate,
                              EncryptionUtil encryptionUtil,
-                             ComponentEnvConfigRepository envConfigRepository) {
-        this.projectRepository = projectRepository;
+                             ComponentEnvConfigRepository envConfigRepository,
+                             ComponentRepository componentRepository) {
         this.deploymentRepository = deploymentRepository;
         this.kafkaTemplate = kafkaTemplate;
         this.objectMapper = new ObjectMapper();
         this.encryptionUtil = encryptionUtil;
         this.envConfigRepository = envConfigRepository;
+        this.componentRepository = componentRepository;
     }
 
     public Deployment triggerDeployment(Component component, String commitSha, AppEnvironment env) {
@@ -122,5 +123,48 @@ public class DeploymentService {
         // Optional: Update deployment status immediately for UI responsiveness
         // deployment.setStatus(Deployment.DeploymentStatus.STOPPING);
         // deploymentRepository.save(deployment);
+    }
+
+    public Map<String, Double> getProjectHealth(Long projectId) {
+        // 1. Get all components for this project
+        List<Component> components = componentRepository.findAllByProjectId(projectId);
+        
+        Map<String, Double> healthMap = new HashMap<>();
+        
+        // Handle edge case: Project has no components yet
+        if (components.isEmpty()) {
+            healthMap.put("DEV", 0.0);
+            healthMap.put("STG", 0.0);
+            healthMap.put("PROD", 0.0);
+            return healthMap;
+        }
+
+        // 2. Iterate through each Environment (DEV, STG, PROD)
+        for (AppEnvironment env : AppEnvironment.values()) {
+            int runningCount = 0;
+
+            // 3. Check each component
+            for (Component component : components) {
+                // Find the LATEST deployment for this component in this env
+                Optional<Deployment> latestDeployment = deploymentRepository
+                        .findTopByComponentIdAndEnvironmentOrderByCreatedAtDesc(component.getId(), env);
+
+                // Check if it exists AND is running
+                if (latestDeployment.isPresent() && 
+                    latestDeployment.get().getStatus() == Deployment.DeploymentStatus.RUNNING) {
+                    runningCount++;
+                }
+            }
+
+            // 4. Calculate Percentage (Running / Total)
+            double percentage = (double) runningCount / components.size();
+            
+            // Limit decimal places to 2 (Optional, useful for JSON)
+            percentage = Math.round(percentage * 100.0) / 100.0;
+
+            healthMap.put(env.name(), percentage);
+        }
+
+        return healthMap;
     }
 }
