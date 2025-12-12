@@ -3,8 +3,14 @@
 import React, { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { 
-  ArrowLeft, Layers, Save, GitBranch, Globe, Terminal, Lock 
+import {
+  ArrowLeft,
+  Layers,
+  Save,
+  GitBranch,
+  Globe,
+  Terminal,
+  Lock,
 } from "lucide-react";
 import api from "@/lib/api";
 import { Input } from "@/components/ui/Input";
@@ -25,7 +31,7 @@ export default function NewComponentPage() {
     branch: "main",
     buildPath: ".",
     port: "8080", // String for input, convert to int for API
-    gitToken: ""
+    gitToken: "",
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,9 +60,11 @@ export default function NewComponentPage() {
       // Navigate back to Project Details on success
       router.refresh();
       router.push(`/projects/${projectId}`);
-      
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to create component. Check your inputs.");
+      setError(
+        err?.response?.data?.message ||
+          "Failed to create component. Check your inputs."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -64,11 +72,10 @@ export default function NewComponentPage() {
 
   return (
     <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
-      
       {/* 1. Header Navigation */}
       <div className="mb-6">
-        <Link 
-          href={`/projects/${projectId}`} 
+        <Link
+          href={`/projects/${projectId}`}
           className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-blue-600 transition-colors"
         >
           <ArrowLeft size={16} className="mr-2" />
@@ -78,15 +85,18 @@ export default function NewComponentPage() {
 
       <form onSubmit={handleSubmit}>
         <div className="space-y-6">
-          
           {/* 2. Main Title Card */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
               <Layers size={24} />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-800">New Component</h1>
-              <p className="text-sm text-slate-500">Deploy a new microservice or application.</p>
+              <h1 className="text-xl font-bold text-slate-800">
+                New Component
+              </h1>
+              <p className="text-sm text-slate-500">
+                Deploy a new microservice or application.
+              </p>
             </div>
           </div>
 
@@ -105,21 +115,34 @@ export default function NewComponentPage() {
                 required
               />
               <div className="w-full mb-4">
-                <label className="block text-sm font-medium text-slate-600 mb-1.5">Subdomain</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Subdomain
+                </label>
+
                 <div className="flex">
                   <input
                     name="subdomain"
                     placeholder="my-app"
-                    className="flex-1 px-4 py-2.5 rounded-l-lg border border-r-0 border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    className="flex-1 px-4 py-2.5 rounded-l-lg border border-r-0 border-slate-200 
+             bg-white text-slate-700 text-base
+             focus:outline-none focus:ring-2 focus:ring-blue-500/20 
+             focus:border-blue-500 transition-all"
                     value={formData.subdomain}
                     onChange={handleChange}
                     required
                   />
-                  <div className="bg-slate-100 border border-slate-200 px-4 py-2.5 rounded-r-lg text-slate-500 text-sm flex items-center">
+
+                  <div
+                    className="bg-slate-100 border border-slate-200 px-4 py-2.5 rounded-r-lg 
+                                  text-slate-600 text-sm flex items-center"
+                  >
                     .cloud-deploy.com
                   </div>
                 </div>
-                <p className="text-xs text-slate-400 mt-1">This will be your internal access URL.</p>
+
+                <p className="text-xs text-slate-500 mt-1">
+                  This will be your internal access URL.
+                </p>
               </div>
             </div>
           </div>
@@ -162,7 +185,8 @@ export default function NewComponentPage() {
           {/* 5. Runtime Config Section */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Terminal size={16} className="text-slate-400" /> Runtime Configuration
+              <Terminal size={16} className="text-slate-400" /> Runtime
+              Configuration
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Input
@@ -200,8 +224,8 @@ export default function NewComponentPage() {
                 Cancel
               </button>
             </Link>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               isLoading={isLoading}
               className="w-auto px-8 shadow-lg shadow-indigo-500/20 bg-indigo-600 hover:bg-indigo-700"
             >
@@ -209,7 +233,6 @@ export default function NewComponentPage() {
               Create Component
             </Button>
           </div>
-
         </div>
       </form>
     </div>
