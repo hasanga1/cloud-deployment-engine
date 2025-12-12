@@ -19,6 +19,9 @@ export const Sidebar = () => {
 
   const handleSignOut = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("selected_org_id");
+    localStorage.removeItem("selected_project_id");
+    localStorage.removeItem("selected_component_id");
     router.push("/auth");
   };
 
