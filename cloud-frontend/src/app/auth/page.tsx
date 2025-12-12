@@ -104,7 +104,7 @@ export default function AuthPage() {
         password: formData.password,
       });
       localStorage.setItem("token", res.data.token);
-      router.push("/dashboard");
+      router.push("/overview");
     } catch (err: any) {
       const status = err?.response?.status;
       if (status === 400) {
@@ -338,7 +338,7 @@ export default function AuthPage() {
             <Button isLoading={isLoading}>Sign In</Button>
             <div className="mt-6 text-center pt-6 border-t border-slate-100">
               <p className="text-sm text-slate-500">
-                Don't have an account?{" "}
+                Don&apos;t have an account?{" "}
                 <button
                   type="button"
                   onClick={() => {
