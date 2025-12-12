@@ -124,7 +124,7 @@ export const NavSelector = ({
         <button
           onClick={() => setIsOpen(!isOpen)}
           className={`
-            ml-2 p-2 rounded-lg border transition-all duration-200
+            ml-2 p-2 rounded-lg border transition-all duration-200 cursor-pointer
             ${
               isOpen
                 ? "border-blue-500 bg-blue-50 text-blue-600 ring-2 ring-blue-100"
@@ -159,7 +159,7 @@ export const NavSelector = ({
                   placeholder={placeholder}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  className="w-full pl-8 pr-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                 />
               </div>
             </div>
