@@ -2,7 +2,7 @@
 
 import React, { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Lock, ArrowRight, CheckCircle2, AlertCircle, Cloud } from "lucide-react";
+import { Lock, ArrowRight, CheckCircle2, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import api from "@/lib/api";
