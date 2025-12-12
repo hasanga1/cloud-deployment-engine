@@ -1,34 +1,12 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Layers, Clock, GitBranch, MoreVertical, Loader2 } from "lucide-react";
+import { Layers, Clock, GitBranch, MoreVertical } from "lucide-react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { IComponent } from "@/types";
 import { useDashboard } from "@/context/DashboardContext";
-
-// --- Time Helper (Same as ProjectCard) ---
-const formatDate = (dateString: string) => {
-  if (!dateString) return "Unknown date";
-  const date = new Date(dateString);
-  const now = new Date();
-  
-  const isToday = 
-    date.getDate() === now.getDate() &&
-    date.getMonth() === now.getMonth() &&
-    date.getFullYear() === now.getFullYear();
-
-  if (isToday) {
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    if (diffInSeconds < 60) return "Just now";
-    const diffInMinutes = Math.floor(diffInSeconds / 60);
-    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    return `${diffInHours}h ago`;
-  } else {
-    return date.toLocaleDateString('en-GB'); // DD/MM/YYYY
-  }
-};
+import { formatDate } from "@/lib/utils/dateUtils";
 
 // --- Status Dot Component ---
 const StatusDot = ({ env, active }: { env: string; active: boolean }) => {
@@ -53,7 +31,7 @@ export const ComponentCard = ({ component }: { component: IComponent }) => {
   const [loading, setLoading] = useState(true);
   const { selectComponent } = useDashboard();
 
-  const handleComponentClick = (router: any, component: IComponent) => {
+  const handleComponentClick = (component: IComponent) => {
     selectComponent(component);
     router.push(`/projects/${component.project.id}/components/${component.id}`);
   };
@@ -65,7 +43,7 @@ export const ComponentCard = ({ component }: { component: IComponent }) => {
         const res = await api.get(`/api/components/${component.id}/status`);
         if (isMounted) setStatus(res.data);
       } catch (error) {
-        // Keep default false on error
+        console.error("Failed to fetch component status", error);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -77,7 +55,7 @@ export const ComponentCard = ({ component }: { component: IComponent }) => {
   return (
     <div 
       // Navigate to component details (placeholder route for now)
-      onClick={() => handleComponentClick(router, component)}
+      onClick={() => handleComponentClick(component)}
       className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group hover:border-blue-300 transition-colors cursor-pointer"
     >
       
