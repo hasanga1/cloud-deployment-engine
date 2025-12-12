@@ -2,16 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
-import {
-  ArrowLeft,
-  Plus,
-  Box,
-  Loader2,
-  Calendar,
-  LayoutGrid,
-  Trash2,
-} from "lucide-react";
+import { Plus, Box, Loader2, Calendar, LayoutGrid, Trash2 } from "lucide-react";
 import api from "@/lib/api";
 import { IProject, IComponent } from "@/types";
 import { Button } from "@/components/ui/Button";
@@ -23,7 +14,6 @@ export default function ProjectComponentsPage() {
   const projectId = params.projectId;
   const router = useRouter();
 
-  // 1. Get selectComponent as well to clear state on navigation
   const { selectProject, selectComponent } = useDashboard();
 
   const [project, setProject] = useState<IProject | null>(null);
@@ -43,9 +33,6 @@ export default function ProjectComponentsPage() {
         const projectData = projectRes.data;
         setProject(projectData);
         setComponents(componentsRes.data);
-
-        // Update Header to show [Org] [Project]
-        // selectProject(projectData);
       } catch (error) {
         console.error("Failed to load project details", error);
       } finally {
@@ -59,7 +46,6 @@ export default function ProjectComponentsPage() {
   // --- Handlers ---
 
   const handleNewComponent = () => {
-    // 2. Clear any selected component so the header implies "Select/Create New"
     selectComponent(null);
     router.push(`/projects/${projectId}/components/new`);
   };
@@ -72,10 +58,11 @@ export default function ProjectComponentsPage() {
       // await api.delete(`/api/projects/${projectId}`);
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      selectProject(null as any); // Clear header selection
+      selectProject(null);
       router.push("/overview");
       router.refresh();
     } catch (error) {
+      console.error("Failed to delete project", error);
       alert("Failed to delete project");
       setIsDeleting(false);
     }
