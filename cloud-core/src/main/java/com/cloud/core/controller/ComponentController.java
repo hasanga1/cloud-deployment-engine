@@ -118,9 +118,9 @@ public class ComponentController {
     }
 
     @GetMapping("/{componentId}")
-    public ResponseEntity<?> getProject(@PathVariable Long componentId) {
+    public ResponseEntity<?> getComponent(@PathVariable Long componentId) {
         Component component = getAuthorizedComponent(componentId);
-        return ResponseEntity.ok(component.getProject());
+        return ResponseEntity.ok(component);
     }
 
     @PostMapping("/{componentId}/envs")
