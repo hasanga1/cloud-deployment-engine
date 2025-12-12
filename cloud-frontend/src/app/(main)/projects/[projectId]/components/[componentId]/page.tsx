@@ -218,7 +218,7 @@ export default function ComponentDetailsPage() {
           <button
             onClick={handleDeleteComponent}
             disabled={isDeleting}
-            className="flex items-center justify-center w-10 h-10 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50 shrink-0 self-start lg:self-center"
+            className="flex items-center justify-center w-10 h-10 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50 shrink-0 self-start lg:self-center cursor-pointer"
             title="Delete Component"
           >
             {isDeleting ? (
@@ -324,7 +324,7 @@ export default function ComponentDetailsPage() {
                           onClick={() => handleStop(deployment.id, env)}
                           isLoading={isStopping}
                           disabled={isStopping || isDeploying}
-                          className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                          className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 cursor-pointer"
                         >
                           <Square size={14} className="mr-2 fill-current" />
                           Stop Instance
@@ -335,7 +335,7 @@ export default function ComponentDetailsPage() {
                           onClick={() => handleDeploy(env)}
                           isLoading={isDeploying}
                           disabled={isDeploying || isStopping}
-                          className="w-full"
+                          className="w-full cursor-pointer"
                         >
                           <Play size={14} className="mr-2 fill-current" />
                           Deploy to {env}
