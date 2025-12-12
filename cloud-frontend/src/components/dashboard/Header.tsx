@@ -51,16 +51,22 @@ export const Header = () => {
       {/* --- Breadcrumb State Machine --- */}
       <div className="flex items-center">
         {/* 1. Organization (Always Visible) */}
-        {isLoading && !selectedOrg ? (
-          <div className="h-10 w-32 bg-slate-100 rounded-lg animate-pulse border border-slate-200" />
+        {selectedOrg === null ? (
+          <NavSelector
+            mode="trigger"
+            labelTitle="Organization"
+            items={orgs}
+            onSelect={handleOrgSelect}
+            placeholder="Select Organization..."
+          />
         ) : (
           <NavSelector
             mode="value"
             labelTitle="Organization"
-            currentValue={selectedOrg?.name}
+            currentValue={selectedOrg.name}
             items={orgs}
             onSelect={handleOrgSelect}
-            placeholder="Switch Org..."
+            placeholder="Switch Organization..."
             href="/overview"
           />
         )}
