@@ -25,6 +25,7 @@ import {
   DeploymentStatus,
 } from "@/types";
 import { useDashboard } from "@/context/DashboardContext";
+import { formatDate } from "@/lib/utils/dateUtils";
 
 // --- Helper: Status Badge ---
 const StatusBadge = ({ status }: { status: DeploymentStatus }) => {
@@ -77,7 +78,6 @@ export default function ComponentDetailsPage() {
         const compData = compRes.data;
         setComponent(compData);
         setDeployments(deployRes.data);
-
       } catch (error) {
         console.error("Failed to load component", error);
       } finally {
@@ -101,7 +101,9 @@ export default function ComponentDetailsPage() {
   // 3. Actions
   const handleDeploy = (env: AppEnvironment) => {
     // Navigate to the deployment wizard
-    router.push(`/projects/${projectId}/components/${componentId}/deploy?env=${env}`);
+    router.push(
+      `/projects/${projectId}/components/${componentId}/deploy?env=${env}`
+    );
   };
 
   const handleStop = async (deploymentId: string, env: AppEnvironment) => {
@@ -202,7 +204,10 @@ export default function ComponentDetailsPage() {
                 <div className="flex items-center gap-1.5">
                   <Clock size={14} className="text-slate-400" />
                   <span>
-                    Created {new Date(component.createdAt).toLocaleDateString()}
+                    Created{" "}
+                    {formatDate(
+                      new Date(component.createdAt).toLocaleDateString()
+                    )}
                   </span>
                 </div>
               </div>
