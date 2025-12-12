@@ -1,8 +1,7 @@
 "use client";
 
-import React from "react";
 import { Bell } from "lucide-react";
-import { useRouter } from "next/navigation"; // 1. Import Router
+import { useRouter } from "next/navigation";
 import { useDashboard } from "@/context/DashboardContext";
 import { NavSelector } from "./NavSelector";
 import { IOrganization, IProject, IComponent } from "@/types";
@@ -60,7 +59,7 @@ export const Header = () => {
             labelTitle="Organization"
             currentValue={selectedOrg?.name}
             items={orgs}
-            onSelect={handleOrgSelect} // Use new handler
+            onSelect={handleOrgSelect}
             placeholder="Switch Org..."
             href="/overview"
           />
@@ -73,7 +72,7 @@ export const Header = () => {
             mode="trigger"
             labelTitle="Project"
             items={projects}
-            onSelect={handleProjectSelect} // Use new handler
+            onSelect={handleProjectSelect}
             placeholder="Select Project..."
           />
         )}
@@ -87,7 +86,7 @@ export const Header = () => {
               labelTitle="Project"
               currentValue={selectedProject.name}
               items={projects}
-              onSelect={handleProjectSelect} // Use new handler
+              onSelect={handleProjectSelect}
               placeholder="Switch Project..."
               href={`/projects/${selectedProject.id}`}
             />
@@ -103,7 +102,7 @@ export const Header = () => {
               mode="trigger"
               labelTitle="Component"
               items={components}
-              onSelect={handleComponentSelect} // Use new handler
+              onSelect={handleComponentSelect}
               placeholder="Select Component..."
             />
           )}
@@ -117,7 +116,7 @@ export const Header = () => {
               labelTitle="Component"
               currentValue={selectedComponent.name}
               items={components}
-              onSelect={handleComponentSelect} // Use new handler
+              onSelect={handleComponentSelect}
               placeholder="Switch Component..."
               href={`/projects/${selectedProject.id}/components/${selectedComponent.id}`}
             />
