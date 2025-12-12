@@ -99,21 +99,9 @@ export default function ComponentDetailsPage() {
   };
 
   // 3. Actions
-  const handleDeploy = async (env: AppEnvironment) => {
-    setActionLoading(`${env}-deploy`);
-    try {
-      await api.post(`/api/components/${componentId}/deploy`, {
-        environment: env,
-      });
-
-      // Optimistic Update or Refetch
-      const res = await api.get(`/api/components/${componentId}/deployments`);
-      setDeployments(res.data);
-    } catch (error) {
-      alert("Deployment failed to start");
-    } finally {
-      setActionLoading(null);
-    }
+  const handleDeploy = (env: AppEnvironment) => {
+    // Navigate to the deployment wizard
+    router.push(`/projects/${projectId}/components/${componentId}/deploy?env=${env}`);
   };
 
   const handleStop = async (deploymentId: string, env: AppEnvironment) => {
