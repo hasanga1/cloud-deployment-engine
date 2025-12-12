@@ -15,7 +15,7 @@ interface NavSelectorProps {
   labelTitle: string; // Small title (e.g. "ORGANIZATION")
   currentValue?: string; // The selected name (e.g. "Acme Corp")
   items: NavItem[]; // List of options
-  onSelect: (item: any) => void;
+  onSelect: (item: NavItem) => void;
 
   // 'value' = Split button (Clickable name + Dropdown)
   // 'trigger' = Only the '>' button to select new
@@ -94,7 +94,7 @@ export const NavSelector = ({
           {/* Part A: Clickable Current Value */}
           <button
             onClick={handleValueClick}
-            className="flex flex-col items-start justify-center px-3 py-1.5 border-r border-slate-100 hover:bg-slate-50 rounded-l-lg transition-colors min-w-[100px] text-left"
+            className="flex flex-col items-start justify-center px-3 py-1.5 border-r border-slate-100 hover:bg-slate-50 rounded-l-lg transition-colors min-w-[100px] text-left cursor-pointer"
           >
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-blue-500 transition-colors">
               {labelTitle}
@@ -111,7 +111,9 @@ export const NavSelector = ({
               setIsOpen(!isOpen);
             }}
             className={`px-1.5 py-3 hover:bg-slate-50 text-slate-400 hover:text-blue-600 rounded-r-lg transition-colors ${
-              isOpen ? "bg-slate-50 text-blue-600" : ""
+              isOpen
+                ? "bg-slate-50 text-blue-600 cursor-pointer"
+                : "cursor-pointer"
             }`}
           >
             <ChevronDown size={14} />
@@ -174,7 +176,7 @@ export const NavSelector = ({
                   <button
                     key={item.id}
                     onClick={() => handleSelect(item)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-sm text-left text-slate-700 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors group"
+                    className="w-full flex items-center justify-between px-3 py-2 text-sm text-left text-slate-700 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors group cursor-pointer"
                   >
                     <span className="truncate font-medium">{item.name}</span>
                     {currentValue === item.name && (
