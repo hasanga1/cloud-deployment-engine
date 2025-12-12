@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { ChevronRight, ChevronsUpDown, Search, Check } from "lucide-react";
+import { ChevronRight, ChevronDown, Search, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 
 // Generic Interface for display
 interface NavItem {
@@ -11,25 +12,28 @@ interface NavItem {
 }
 
 interface NavSelectorProps {
-  labelTitle: string;    // Small title (e.g. "ORGANIZATION")
+  labelTitle: string; // Small title (e.g. "ORGANIZATION")
   currentValue?: string; // The selected name (e.g. "Acme Corp")
-  items: NavItem[];      // List of options
+  items: NavItem[]; // List of options
   onSelect: (item: any) => void;
-  
-  // 'value' = The main selection box
-  // 'trigger' = The small '>' button
-  mode: "value" | "trigger"; 
+
+  // 'value' = Split button (Clickable name + Dropdown)
+  // 'trigger' = Only the '>' button to select new
+  mode: "value" | "trigger";
   placeholder?: string;
+  href?: string; // URL to navigate to when clicking the name
 }
 
-export const NavSelector = ({ 
-  labelTitle, 
-  currentValue, 
-  items, 
-  onSelect, 
-  mode, 
-  placeholder = "Search..." 
+export const NavSelector = ({
+  labelTitle,
+  currentValue,
+  items,
+  onSelect,
+  mode,
+  placeholder = "Search...",
+  href = "#", // Default fallback
 }: NavSelectorProps) => {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -37,7 +41,10 @@ export const NavSelector = ({
   // Close when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
@@ -45,8 +52,8 @@ export const NavSelector = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Filter items based on search
-  const filteredItems = items.filter(item => 
+  // Filter items
+  const filteredItems = items.filter((item) =>
     item.name.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -56,40 +63,70 @@ export const NavSelector = ({
     setSearch("");
   };
 
+  // Handle clicking on the current value
+  const handleValueClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // Find the current item and trigger onSelect
+    const currentItem = items.find((item) => item.name === currentValue);
+    if (currentItem) {
+      onSelect(currentItem);
+    }
+    // Also navigate
+    if (href !== "#") {
+      router.push(href);
+    }
+  };
+
   return (
     <div className="relative flex items-center" ref={containerRef}>
-      
-      {/* --- TRIGGER BUTTON --- */}
+      {/* --- MODE: VALUE (Split Button) --- */}
       {mode === "value" ? (
-        <button
-          onClick={() => setIsOpen(!isOpen)}
+        <div
           className={`
-            group flex flex-col items-start justify-center 
-            px-3 py-1.5 rounded-lg border transition-all duration-200 min-w-[140px]
-            ${isOpen 
-              ? "border-blue-500 bg-blue-50/50 ring-2 ring-blue-100" 
-              : "border-slate-200 hover:border-blue-400 hover:bg-slate-50"
-            }
-          `}
+          group flex items-center rounded-lg border border-slate-200 bg-white transition-all duration-200
+          ${
+            isOpen
+              ? "ring-2 ring-blue-100 border-blue-400"
+              : "hover:border-blue-300"
+          }
+        `}
         >
-          <div className="flex items-center justify-between w-full">
+          {/* Part A: Clickable Current Value */}
+          <button
+            onClick={handleValueClick}
+            className="flex flex-col items-start justify-center px-3 py-1.5 border-r border-slate-100 hover:bg-slate-50 rounded-l-lg transition-colors min-w-[100px] text-left"
+          >
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-blue-500 transition-colors">
               {labelTitle}
             </span>
-            <ChevronsUpDown size={12} className="text-slate-300 group-hover:text-blue-500" />
-          </div>
-          <span className="font-semibold text-slate-800 text-sm truncate max-w-[140px]">
-            {currentValue}
-          </span>
-        </button>
+            <span className="font-semibold text-slate-800 text-sm truncate max-w-[140px]">
+              {currentValue}
+            </span>
+          </button>
+
+          {/* Part B: Dropdown Toggle */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOpen(!isOpen);
+            }}
+            className={`px-1.5 py-3 hover:bg-slate-50 text-slate-400 hover:text-blue-600 rounded-r-lg transition-colors ${
+              isOpen ? "bg-slate-50 text-blue-600" : ""
+            }`}
+          >
+            <ChevronDown size={14} />
+          </button>
+        </div>
       ) : (
+        /* --- MODE: TRIGGER (Simple > Button) --- */
         <button
           onClick={() => setIsOpen(!isOpen)}
           className={`
             ml-2 p-2 rounded-lg border transition-all duration-200
-            ${isOpen 
-              ? "border-blue-500 bg-blue-50 text-blue-600 ring-2 ring-blue-100" 
-              : "border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 hover:bg-slate-50"
+            ${
+              isOpen
+                ? "border-blue-500 bg-blue-50 text-blue-600 ring-2 ring-blue-100"
+                : "border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 hover:bg-slate-50"
             }
           `}
         >
@@ -110,7 +147,10 @@ export const NavSelector = ({
             {/* Search */}
             <div className="p-2 border-b border-slate-100 bg-slate-50/50">
               <div className="relative">
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search
+                  size={14}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                />
                 <input
                   type="text"
                   autoFocus
@@ -144,12 +184,12 @@ export const NavSelector = ({
                 ))
               )}
             </div>
-            
+
             {/* Footer Prompt */}
             <div className="bg-slate-50 px-3 py-2 border-t border-slate-100">
-               <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                  Select {mode === 'trigger' ? 'New' : ''} {labelTitle}
-               </span>
+              <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                Select {mode === "trigger" ? "New" : ""} {labelTitle}
+              </span>
             </div>
           </motion.div>
         )}

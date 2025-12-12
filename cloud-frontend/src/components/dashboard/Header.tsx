@@ -2,95 +2,127 @@
 
 import React from "react";
 import { Bell } from "lucide-react";
+import { useRouter } from "next/navigation"; // 1. Import Router
 import { useDashboard } from "@/context/DashboardContext";
 import { NavSelector } from "./NavSelector";
+import { IOrganization, IProject, IComponent } from "@/types";
 
 export const Header = () => {
+  const router = useRouter();
   const {
     // Data Lists
-    orgs, projects, components,
+    orgs,
+    projects,
+    components,
     // Selection States
-    selectedOrg, selectedProject, selectedComponent,
+    selectedOrg,
+    selectedProject,
+    selectedComponent,
     // Actions
-    selectOrg, selectProject, selectComponent,
-    isLoading
+    selectOrg,
+    selectProject,
+    selectComponent,
+    isLoading,
   } = useDashboard();
+
+  // --- Handlers: State Update + Navigation ---
+
+  const handleOrgSelect = (org: IOrganization) => {
+    selectOrg(org);
+    selectProject(null);
+    selectComponent(null);
+    router.push("/overview");
+  };
+
+  const handleProjectSelect = (proj: IProject) => {
+    selectProject(proj);
+    selectComponent(null);
+    router.push(`/projects/${proj.id}`);
+  };
+
+  const handleComponentSelect = (comp: IComponent) => {
+    selectComponent(comp);
+    if (selectedProject) {
+      router.push(`/projects/${selectedProject.id}/components/${comp.id}`);
+    }
+  };
 
   return (
     <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-20">
-      
       {/* --- Breadcrumb State Machine --- */}
       <div className="flex items-center">
-        
         {/* 1. Organization (Always Visible) */}
         {isLoading && !selectedOrg ? (
-           <div className="h-10 w-32 bg-slate-100 rounded-lg animate-pulse border border-slate-200" />
+          <div className="h-10 w-32 bg-slate-100 rounded-lg animate-pulse border border-slate-200" />
         ) : (
-           <NavSelector
-             mode="value"
-             labelTitle="Organization"
-             currentValue={selectedOrg?.name}
-             items={orgs}
-             onSelect={selectOrg}
-             placeholder="Switch Org..."
-           />
+          <NavSelector
+            mode="value"
+            labelTitle="Organization"
+            currentValue={selectedOrg?.name}
+            items={orgs}
+            onSelect={handleOrgSelect} // Use new handler
+            placeholder="Switch Org..."
+            href="/overview"
+          />
         )}
 
         {/* 2. Project Selection */}
-        {selectedOrg && !selectedProject && (
+        {selectedOrg && selectedProject === null && projects.length > 0 && (
           // State: [Org] [>]
-          <NavSelector 
+          <NavSelector
             mode="trigger"
-            labelTitle="Project" // Label shown inside dropdown footer
+            labelTitle="Project"
             items={projects}
-            onSelect={selectProject}
+            onSelect={handleProjectSelect} // Use new handler
             placeholder="Select Project..."
           />
         )}
 
-        {selectedOrg && selectedProject && (
+        {selectedOrg && selectedProject !== null && (
           // State: [Org] [Project]
           <>
-             {/* Divider hidden, we use margin on the buttons */}
-             <div className="w-2" /> 
-             <NavSelector
-               mode="value"
-               labelTitle="Project"
-               currentValue={selectedProject.name}
-               items={projects}
-               onSelect={selectProject}
-               placeholder="Switch Project..."
-             />
+            <div className="w-2" />
+            <NavSelector
+              mode="value"
+              labelTitle="Project"
+              currentValue={selectedProject.name}
+              items={projects}
+              onSelect={handleProjectSelect} // Use new handler
+              placeholder="Switch Project..."
+              href={`/projects/${selectedProject.id}`}
+            />
           </>
         )}
 
         {/* 3. Component Selection */}
-        {selectedProject && !selectedComponent && (
-           // State: [Org] [Project] [>]
-           <NavSelector 
-             mode="trigger"
-             labelTitle="Component"
-             items={components}
-             onSelect={selectComponent}
-             placeholder="Select Component..."
-           />
-        )}
+        {selectedProject !== null &&
+          selectedComponent === null &&
+          components.length > 0 && (
+            // State: [Org] [Project] [>]
+            <NavSelector
+              mode="trigger"
+              labelTitle="Component"
+              items={components}
+              onSelect={handleComponentSelect} // Use new handler
+              placeholder="Select Component..."
+            />
+          )}
 
-        {selectedProject && selectedComponent && (
-            // State: [Org] [Project] [Component]
-            <>
-                <div className="w-2" />
-                <NavSelector
-                    mode="value"
-                    labelTitle="Component"
-                    currentValue={selectedComponent.name}
-                    items={components}
-                    onSelect={selectComponent}
-                    placeholder="Switch Component..."
-                />
-            </>
+        {selectedProject !== null && selectedComponent !== null && (
+          // State: [Org] [Project] [Component]
+          <>
+            <div className="w-2" />
+            <NavSelector
+              mode="value"
+              labelTitle="Component"
+              currentValue={selectedComponent.name}
+              items={components}
+              onSelect={handleComponentSelect} // Use new handler
+              placeholder="Switch Component..."
+              href={`/projects/${selectedProject.id}/components/${selectedComponent.id}`}
+            />
+          </>
         )}
-
       </div>
 
       {/* --- Right Actions --- */}

@@ -5,6 +5,7 @@ import { Layers, Clock, GitBranch, MoreVertical, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { IComponent } from "@/types";
+import { useDashboard } from "@/context/DashboardContext";
 
 // --- Time Helper (Same as ProjectCard) ---
 const formatDate = (dateString: string) => {
@@ -50,6 +51,12 @@ export const ComponentCard = ({ component }: { component: IComponent }) => {
   const router = useRouter();
   const [status, setStatus] = useState({ DEV: false, STG: false, PROD: false });
   const [loading, setLoading] = useState(true);
+  const { selectComponent } = useDashboard();
+
+  const handleComponentClick = (router: any, component: IComponent) => {
+    selectComponent(component);
+    router.push(`/projects/${component.project.id}/components/${component.id}`);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -70,7 +77,7 @@ export const ComponentCard = ({ component }: { component: IComponent }) => {
   return (
     <div 
       // Navigate to component details (placeholder route for now)
-      onClick={() => router.push(`/projects/${component.projectId}/components/${component.id}`)}
+      onClick={() => handleComponentClick(router, component)}
       className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group hover:border-blue-300 transition-colors cursor-pointer"
     >
       

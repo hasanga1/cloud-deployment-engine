@@ -16,15 +16,15 @@ import api from "@/lib/api";
 import { IProject, IComponent } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { ComponentCard } from "@/components/dashboard/ComponentCard";
-import { useDashboard } from "@/context/DashboardContext"; // 1. Import Context
+import { useDashboard } from "@/context/DashboardContext";
 
 export default function ProjectComponentsPage() {
   const params = useParams();
   const projectId = params.projectId;
   const router = useRouter();
 
-  // 2. Get the Context Action
-  const { selectProject, selectedOrg } = useDashboard();
+  // 1. Get selectComponent as well to clear state on navigation
+  const { selectProject, selectComponent } = useDashboard();
 
   const [project, setProject] = useState<IProject | null>(null);
   const [components, setComponents] = useState<IComponent[]>([]);
@@ -44,9 +44,8 @@ export default function ProjectComponentsPage() {
         setProject(projectData);
         setComponents(componentsRes.data);
 
-        // 3. SYNC HEADER: Update global context with this project
-        // This makes the header show: [Org] [Project Name] [>]
-        selectProject(projectData);
+        // Update Header to show [Org] [Project]
+        // selectProject(projectData);
       } catch (error) {
         console.error("Failed to load project details", error);
       } finally {
@@ -55,20 +54,25 @@ export default function ProjectComponentsPage() {
     };
 
     if (projectId) fetchData();
-  }, [projectId, selectProject]); // Add selectProject to dependencies
+  }, [projectId, selectProject]);
 
-  // --- Delete Handler ---
+  // --- Handlers ---
+
+  const handleNewComponent = () => {
+    // 2. Clear any selected component so the header implies "Select/Create New"
+    selectComponent(null);
+    router.push(`/projects/${projectId}/components/new`);
+  };
+
   const handleDeleteProject = async () => {
     if (!confirm("Are you sure you want to delete this project?")) return;
 
     setIsDeleting(true);
     try {
-      // await api.delete(`/api/projects/${projectId}`); // Uncomment when API is ready
+      // await api.delete(`/api/projects/${projectId}`);
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // 4. Reset context on delete
-      selectProject(null as any);
-
+      selectProject(null as any); // Clear header selection
       router.push("/overview");
       router.refresh();
     } catch (error) {
@@ -90,8 +94,9 @@ export default function ProjectComponentsPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
+      {/* Back Link */}
       <div>
-        {/* 2. Project Header */}
+        {/* Project Header */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col lg:flex-row lg:items-start justify-between gap-6">
           <div className="flex items-start gap-5 flex-1 min-w-0">
             <div className="w-14 h-14 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20 shrink-0">
@@ -133,10 +138,8 @@ export default function ProjectComponentsPage() {
             </button>
 
             <Button
-              onClick={() =>
-                router.push(`/projects/${projectId}/components/new`)
-              }
-              className="shadow-lg shadow-blue-500/20 w-auto px-4"
+              onClick={handleNewComponent} // 3. Use the new handler
+              className="shadow-lg shadow-blue-500/20 w-auto px-4 cursor-pointer"
             >
               <Plus size={18} className="mr-2" />
               New Component
@@ -145,7 +148,7 @@ export default function ProjectComponentsPage() {
         </div>
       </div>
 
-      {/* 3. Components List */}
+      {/* Components List */}
       <div className="space-y-4">
         <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
           Components
@@ -168,9 +171,7 @@ export default function ProjectComponentsPage() {
             </p>
             <Button
               variant="outline"
-              onClick={() =>
-                router.push(`/projects/${projectId}/components/new`)
-              }
+              onClick={handleNewComponent} // Use handler here too
             >
               Add Component
             </Button>
