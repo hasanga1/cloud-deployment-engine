@@ -102,13 +102,9 @@ public class OrganizationController {
         // 4. Fetch Names/Emails from Auth Service
         Map<Long, OrganizationMemberDTO> userDetails = authServiceClient.fetchUsers(userIds);
 
-        System.out.println("User Details from Auth Service: " + userDetails);
-
         // 5. Merge Data
         List<OrganizationMemberDTO> response = members.stream().map(member -> {
             OrganizationMemberDTO details = userDetails.get(member.getUserId());
-
-            System.out.println("Member ID: " + member.getUserId() + ", Details: " + details);
             
             String fName = (details != null) ? details.getFirstName() : "Unknown";
             String lName = (details != null) ? details.getLastName() : "";

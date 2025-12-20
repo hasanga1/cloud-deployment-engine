@@ -172,8 +172,6 @@ public class AuthController {
         List<UserResponse> response = users.stream()
                 .map(u -> new UserResponse(u.getId(), u.getEmail(), u.getFirstName(), u.getLastName()))
                 .toList();
-
-        System.out.println("Fetched Users: " + response);
                 
         return ResponseEntity.ok(response);
     }
