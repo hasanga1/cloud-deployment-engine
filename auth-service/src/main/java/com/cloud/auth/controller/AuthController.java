@@ -15,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.List;
 
 @RestController
 @RequestMapping("/auth")
@@ -162,6 +163,19 @@ public class AuthController {
         boolean hasSpecial = Pattern.compile("[!@#$%^&*(),.?\":{}|<>]").matcher(password).find();
 
         return hasLength && hasUpper && hasNumber && hasSpecial;
+    }
+
+    @PostMapping("/users/batch")
+    public ResponseEntity<List<UserResponse>> getUsersBatch(@RequestBody List<Long> userIds) {
+        List<User> users = userRepository.findAllById(userIds);
+        
+        List<UserResponse> response = users.stream()
+                .map(u -> new UserResponse(u.getId(), u.getEmail(), u.getFirstName(), u.getLastName()))
+                .toList();
+
+        System.out.println("Fetched Users: " + response);
+                
+        return ResponseEntity.ok(response);
     }
 }
 

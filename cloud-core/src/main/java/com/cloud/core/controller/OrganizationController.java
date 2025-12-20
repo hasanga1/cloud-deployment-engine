@@ -1,5 +1,6 @@
 package com.cloud.core.controller;
 
+import com.cloud.core.dto.OrganizationMemberDTO;
 import com.cloud.core.entity.MemberRole;
 import com.cloud.core.entity.Organization;
 import com.cloud.core.entity.OrganizationMember;
@@ -8,11 +9,13 @@ import com.cloud.core.repository.OrganizationRepository;
 import com.cloud.core.repository.ProjectRepository;
 import com.cloud.core.repository.DeploymentRepository;
 import com.cloud.core.service.AuthHelper;
+import com.cloud.core.service.AuthServiceClient;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/orgs")
@@ -23,13 +26,15 @@ public class OrganizationController {
     private final AuthHelper authHelper;
     private final ProjectRepository projectRepository;
     private final DeploymentRepository deploymentRepository;
+    private final AuthServiceClient authServiceClient;
 
-    public OrganizationController(OrganizationRepository orgRepo, OrganizationMemberRepository memberRepo, AuthHelper authHelper, ProjectRepository projectRepository, DeploymentRepository deploymentRepository) {
+    public OrganizationController(OrganizationRepository orgRepo, OrganizationMemberRepository memberRepo, AuthHelper authHelper, ProjectRepository projectRepository, DeploymentRepository deploymentRepository, AuthServiceClient authServiceClient) {
         this.orgRepo = orgRepo;
         this.memberRepo = memberRepo;
         this.authHelper = authHelper;
         this.projectRepository = projectRepository;
         this.deploymentRepository = deploymentRepository;
+        this.authServiceClient = authServiceClient;
     }
 
     @PostMapping
@@ -78,5 +83,46 @@ public class OrganizationController {
 
         long count = deploymentRepository.countByOrganizationId(orgId);
         return ResponseEntity.ok(count);
+    }
+
+    @GetMapping("/{orgId}/members")
+    public ResponseEntity<List<OrganizationMemberDTO>> getOrgMembers(@PathVariable Long orgId) {
+        // 1. Security Check
+        authHelper.checkAccess(orgId);
+
+        // 2. Get Members from DB (Core)
+        // Note: You need a method in memberRepo to find by orgId
+        List<OrganizationMember> members = memberRepo.findAllByOrganizationId(orgId);
+
+        // 3. Extract User IDs
+        List<Long> userIds = members.stream()
+                .map(OrganizationMember::getUserId)
+                .toList();
+
+        // 4. Fetch Names/Emails from Auth Service
+        Map<Long, OrganizationMemberDTO> userDetails = authServiceClient.fetchUsers(userIds);
+
+        System.out.println("User Details from Auth Service: " + userDetails);
+
+        // 5. Merge Data
+        List<OrganizationMemberDTO> response = members.stream().map(member -> {
+            OrganizationMemberDTO details = userDetails.get(member.getUserId());
+
+            System.out.println("Member ID: " + member.getUserId() + ", Details: " + details);
+            
+            String fName = (details != null) ? details.getFirstName() : "Unknown";
+            String lName = (details != null) ? details.getLastName() : "";
+            String email = (details != null) ? details.getEmail() : "N/A";
+
+            return new OrganizationMemberDTO(
+                    member.getUserId(),
+                    fName,
+                    lName,
+                    email,
+                    member.getRole() // Role comes from Core
+            );
+        }).toList();
+
+        return ResponseEntity.ok(response);
     }
 }
