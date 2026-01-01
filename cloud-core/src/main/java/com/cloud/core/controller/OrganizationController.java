@@ -10,6 +10,7 @@ import com.cloud.core.repository.ProjectRepository;
 import com.cloud.core.repository.DeploymentRepository;
 import com.cloud.core.service.AuthHelper;
 import com.cloud.core.service.AuthServiceClient;
+import com.cloud.core.service.InvitationService;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,14 +28,16 @@ public class OrganizationController {
     private final ProjectRepository projectRepository;
     private final DeploymentRepository deploymentRepository;
     private final AuthServiceClient authServiceClient;
+    private final InvitationService invitationService;
 
-    public OrganizationController(OrganizationRepository orgRepo, OrganizationMemberRepository memberRepo, AuthHelper authHelper, ProjectRepository projectRepository, DeploymentRepository deploymentRepository, AuthServiceClient authServiceClient) {
+    public OrganizationController(OrganizationRepository orgRepo, OrganizationMemberRepository memberRepo, AuthHelper authHelper, ProjectRepository projectRepository, DeploymentRepository deploymentRepository, AuthServiceClient authServiceClient, InvitationService invitationService) {
         this.orgRepo = orgRepo;
         this.memberRepo = memberRepo;
         this.authHelper = authHelper;
         this.projectRepository = projectRepository;
         this.deploymentRepository = deploymentRepository;
         this.authServiceClient = authServiceClient;
+        this.invitationService = invitationService;
     }
 
     @PostMapping
@@ -120,5 +123,27 @@ public class OrganizationController {
         }).toList();
 
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{orgId}/invite")
+    public ResponseEntity<?> inviteMember(@PathVariable Long orgId, @RequestBody Map<String, String> payload) {
+        String email = payload.get("email");
+        String roleStr = payload.getOrDefault("role", "DEVELOPER");
+        
+        if (email == null) return ResponseEntity.badRequest().body("Email is required");
+
+        invitationService.sendInvitation(orgId, email, MemberRole.valueOf(roleStr));
+        
+        return ResponseEntity.ok("Invitation sent to " + email);
+    }
+
+    @PostMapping("/join")
+    public ResponseEntity<?> joinOrganization(@RequestParam String token) {
+        try {
+            invitationService.acceptInvitation(token);
+            return ResponseEntity.ok("Successfully joined the organization!");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 }
