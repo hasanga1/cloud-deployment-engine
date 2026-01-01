@@ -146,4 +146,28 @@ public class OrganizationController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
+    @DeleteMapping("/{orgId}/leave")
+    public ResponseEntity<?> leaveOrganization(@PathVariable Long orgId) {
+        Long userId = authHelper.getCurrentUserId();
+
+        // 1. Find Membership
+        OrganizationMember member = memberRepo.findByUserIdAndOrganizationId(userId, orgId)
+                .orElseThrow(() -> new RuntimeException("You are not a member of this organization"));
+
+        // 2. Prevent the last OWNER from leaving (Optional Safety)
+        if (member.getRole() == MemberRole.OWNER) {
+             long ownerCount = memberRepo.findAllByOrganizationId(orgId).stream()
+                     .filter(m -> m.getRole() == MemberRole.OWNER)
+                     .count();
+             if (ownerCount == 1) {
+                 return ResponseEntity.badRequest().body("You are the only Owner. You must promote someone else before leaving.");
+             }
+        }
+
+        // 3. Remove Member
+        memberRepo.delete(member);
+        
+        return ResponseEntity.ok("You have left the organization.");
+    }
 }
