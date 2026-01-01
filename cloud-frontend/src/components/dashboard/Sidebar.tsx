@@ -26,7 +26,7 @@ export const Sidebar = () => {
   };
 
   const navItems = [
-    { label: "Overview", href: "/", icon: LayoutDashboard },
+    { label: "Overview", href: "/overview", icon: LayoutDashboard },
     { label: "Observability", href: "/observability", icon: Activity },
     { label: "Members", href: "/members", icon: Users },
     { label: "Settings", href: "/settings", icon: Settings },
