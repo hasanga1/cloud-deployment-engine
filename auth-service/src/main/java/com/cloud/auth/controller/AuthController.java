@@ -4,13 +4,13 @@ import com.cloud.auth.dto.UserResponse;
 import com.cloud.auth.entity.User;
 import com.cloud.auth.repository.UserRepository;
 import com.cloud.auth.util.JwtUtils;
-import com.cloud.auth.dto.UserResponse;
+import com.cloud.auth.dto.UpdateProfileRequest;
+import com.cloud.auth.dto.ChangePasswordRequest;
 
 import lombok.Data;
 
 import com.cloud.auth.service.EmailService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
@@ -163,6 +163,58 @@ public class AuthController {
         boolean hasSpecial = Pattern.compile("[!@#$%^&*(),.?\":{}|<>]").matcher(password).find();
 
         return hasLength && hasUpper && hasNumber && hasSpecial;
+    }
+
+    @PutMapping("/profile")
+    public ResponseEntity<?> updateProfile(@RequestHeader("Authorization") String token, 
+                                           @RequestBody UpdateProfileRequest request) {
+        
+        System.out.println("Update Profile Request: " + request);
+        Long userId = extractUserId(token);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Update fields if they are provided
+        if (request.getFirstName() != null) user.setFirstName(request.getFirstName());
+        if (request.getLastName() != null) user.setLastName(request.getLastName());
+
+        userRepository.save(user);
+        
+        return ResponseEntity.ok("Profile updated successfully");
+    }
+
+    @PutMapping("/password")
+    public ResponseEntity<?> changePassword(@RequestHeader("Authorization") String token, 
+                                            @RequestBody ChangePasswordRequest request) {
+        Long userId = extractUserId(token);
+        
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // A. Verify Old Password
+        if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
+            return ResponseEntity.badRequest().body("Incorrect old password");
+        }
+
+        // B. Validate New Password Strength (Reuse your existing helper)
+        if (!isValidPassword(request.getNewPassword())) {
+            return ResponseEntity.badRequest().body("New password is too weak. Must contain 8+ chars, uppercase, number, symbol.");
+        }
+
+        // C. Update Password
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        return ResponseEntity.ok("Password changed successfully");
+    }
+
+    private Long extractUserId(String token) {
+        System.out.println("Extracting user ID from token: " + token);
+        if (token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+        return jwtUtils.getUserIdFromToken(token);
     }
 
     @PostMapping("/users/batch")
